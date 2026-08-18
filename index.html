@@ -6,6 +6,7 @@
 <title>ECOURBA · Plataforma de espacios públicos — NOM-001-SEDATU</title>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
   integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
+<link rel="stylesheet" href="https://unpkg.com/@geoman-io/leaflet-geoman-free@2.18.3/dist/leaflet-geoman.css">
 <style>
   :root{
     --ground:#FAF8F3; --surface:#FFFFFF; --surface-2:#F3EFE7;
@@ -338,6 +339,11 @@
         <button data-base="claro">Claro</button>
         <button data-base="satelite">Satélite</button>
       </div>
+      <div class="grp">Exportar mapa</div>
+      <div style="display:flex;gap:8px;padding:2px">
+        <button class="btn ghost" id="map-png" style="font-size:12px;flex:1">PNG</button>
+        <button class="btn ghost" id="map-pdf" style="font-size:12px;flex:1">PDF</button>
+      </div>
       <div class="grp">Modo de alcance</div>
       <div class="seg" id="seg-modo">
         <button data-modo="distance" class="on">Distancia · NOM</button>
@@ -349,7 +355,7 @@
       <div class="prow" data-layer="espacios">
         <input type="checkbox" checked>
         <span class="dot" style="background:#35615D"></span>
-        <span class="lab">Puntos por tipología (NOM)</span>
+        <span class="lab">Espacios públicos (puntos · color = escala)</span>
         <span class="meta" id="n-esp"></span>
       </div>
       <div id="fun-legend" style="display:flex;flex-wrap:wrap;gap:6px 14px;padding:4px 2px 6px 26px"></div>
@@ -363,8 +369,17 @@
         <div id="up-status" style="margin-top:8px;font-size:11px;color:var(--muted);line-height:1.5"></div>
         <button class="btn ghost" id="up-clear" style="margin-top:8px;display:none;font-size:12px">Quitar preview</button>
       </div>
-      <div class="grp" id="grp-sin">Sin cobertura · el negativo (9.2)</div>
-      <div id="sin-rows"></div>
+      <div class="grp">Dibujar espacios</div>
+      <div style="padding:2px 2px 4px">
+        <div style="font-size:11px;color:var(--muted);line-height:1.5">Usa la <b>barra de dibujo</b> del mapa (arriba a la izq.): punto, línea o polígono. Cada polígono se clasifica por <b>superficie (escala NOM)</b>, se ubica su <b>centroide</b> y se calcula su <b>isócrona</b> (Valhalla si está disponible; si no, aproximación por radio).</div>
+        <div id="draw-status" style="margin-top:8px;font-size:11px;color:var(--muted);line-height:1.5"></div>
+        <div id="draw-layers" style="margin-top:6px"></div>
+        <div style="display:flex;flex-wrap:wrap;gap:8px;margin-top:8px">
+          <button class="btn ghost" id="draw-geojson" style="display:none;font-size:12px">Descargar GeoJSON</button>
+          <button class="btn ghost" id="draw-kml" style="display:none;font-size:12px">Descargar KML</button>
+          <button class="btn ghost" id="draw-clear" style="display:none;font-size:12px">Borrar todo</button>
+        </div>
+      </div>
       <div class="foot" id="foot"></div>
     </aside>
     <button class="btn-toggle" id="btnToggle">Capas ▾</button>
@@ -413,6 +428,10 @@
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
   integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+<script src="https://unpkg.com/@turf/turf@7.2.0/turf.min.js"></script>
+<script src="https://unpkg.com/@geoman-io/leaflet-geoman-free@2.18.3/dist/leaflet-geoman.min.js"></script>
+<script src="https://unpkg.com/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+<script src="https://unpkg.com/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
 <script src="dashboard_datos.js"></script>
 <script src="mapa_datos.js?v=34"></script>
 <script src="mapa_nacional_datos.js?v=38"></script>
@@ -804,8 +823,9 @@
   var mapScope='cdmx';
   var map=null, bases=null, baseActual=null, canvas=null, D=null;
   var layers={}, covLayers={}, covData={}, covChecked={}, curMode='distance', espLyr=null;
+  var espByEsc={}, escVisible={}, masterEsp=true;  // puntos por ESCALA (filtro)
   var mapStaticBound=false;
-  function defaultOn(){ return mapScope==='nac' ? {espacios:true} : {cobertura_A1:true, espacios:true, desierto:true}; }
+  function defaultOn(){ return mapScope==='nac' ? {espacios:true} : {cobertura_A1:true, espacios:true}; }
   function covDef(id){ for(var i=0;i<COV.length;i++){ if(COV[i].id===id) return COV[i]; } return null; }
   function getCov(mode,id){ // crea la capa Leaflet SOLO al necesitarla (perezoso: geometrías nacionales pesadas)
     if(!covLayers[mode]) covLayers[mode]={};
@@ -833,16 +853,18 @@
   var BANDA={ casi:{c:'#C7B850',label:'Casi cubierta (excede <200 m)'},
     deficit_medio:{c:'#D89756',label:'Déficit medio (200–500 m)'},
     desierto:{c:'#C56A3A',label:'Desierto (>500 m)'} };
-  var DEFAULT_ON={cobertura_A1:true, espacios:true, desierto:true};
+  var DEFAULT_ON={cobertura_A1:true, espacios:true};
 
   function curMapData(){ return mapScope==='nac' ? (window.ESPPUB_NAC||null) : ESP; }
   function modeLabel(m){ return MODE_LAB[m]||m; }
   function covStyle(c){ return {color:c,weight:1,opacity:.9,fillColor:c,fillOpacity:.32,renderer:canvas}; }
   function toggleCov(id,on){ if(!map) return; var l=getCov(curMode,id); if(!l) return; if(on) l.addTo(map); else map.removeLayer(l); }
   function toggle(id,on){ var l=layers[id]; if(!l||!map) return;
-    if(on){ l.addTo(map); if(l.bringToFront&&id.indexOf('sin_')===0) l.bringToFront();
-      if(id==='espacios'&&espLyr&&espLyr.eachLayer) espLyr.eachLayer(function(x){x.bringToFront&&x.bringToFront();}); }
-    else map.removeLayer(l); }
+    if(on) l.addTo(map); else map.removeLayer(l); }
+  // muestra/oculta los puntos por escala: visible = master ON y esa escala encendida
+  function syncEsp(){ if(!map) return; Object.keys(espByEsc).forEach(function(s){ var g=espByEsc[s];
+    if(masterEsp && escVisible[s]!==false){ g.addTo(map); g.eachLayer(function(x){ x.bringToFront&&x.bringToFront(); }); }
+    else map.removeLayer(g); }); }
   function pct(m,esc){ var r=(m||{})['cobertura_'+esc]||{}; return r.pct_poblacion; }
   function dpp(esc){ var t=pct((D.meta||{}).time,esc), d=pct((D.meta||{}).distance,esc);
     if(t==null||d==null) return ''; var dd=t-d; return ' ('+(dd>=0?'+':'')+dd.toFixed(1)+' pp)'; }
@@ -855,9 +877,7 @@
       kpi('gd','Con cobertura',(ct.pct_poblacion!=null?ct.pct_poblacion+'%':'—')+(isT?dpp('total'):''),'A-1 proximidad: '+(ca.pct_poblacion!=null?ca.pct_poblacion+'%':'—')+(isT?dpp('A1'):''))+
       kpi('cr','Sin cobertura',sinPct+'%','área verde: '+(cv.pct_poblacion!=null?cv.pct_poblacion+'%':'—')+' cubierta');
   }
-  function bringOverlaysFront(){ ['sin_casi','sin_deficit_medio','sin_desierto'].forEach(function(id){
-      if(layers[id]&&map.hasLayer(layers[id])&&layers[id].bringToFront) layers[id].bringToFront(); });
-    if(espLyr&&map.hasLayer(espLyr)) espLyr.eachLayer(function(x){ x.bringToFront&&x.bringToFront(); }); }
+  function bringOverlaysFront(){ Object.keys(espByEsc).forEach(function(s){ if(map.hasLayer(espByEsc[s])) espByEsc[s].eachLayer(function(x){ x.bringToFront&&x.bringToFront(); }); }); }
   function applyMapMode(m){ if(!covData[m]||m===curMode){ syncSeg(); return; }
     COV.forEach(function(def){ if(covChecked[def.id]){
       var oldL=covLayers[curMode]&&covLayers[curMode][def.id]; if(oldL) map.removeLayer(oldL);
@@ -866,6 +886,134 @@
   function syncSeg(){ [].forEach.call(document.getElementById('seg-modo').children, function(x){ x.classList.toggle('on', x.getAttribute('data-modo')===curMode); }); }
   window._mapSetMode=applyMapMode;
 
+  /* --- Dibujar espacios: Geoman (dibujo) + Turf (área→escala) + centroide + isócrona --- */
+  var drawnItems=[], _did=1, drawSeq={poly:0,line:0,point:0};
+  var DRAW_D2_KM={A1:0.5, B2:0.8, C3:1.2, D4:2.5, E5:12};
+  function drawEscala(ha){ if(ha<0.01)return'menor_minimo'; if(ha<=2)return'A1'; if(ha<=5)return'B2'; if(ha<=10)return'C3'; if(ha<=50)return'D4'; return'E5'; }
+  function drawSetVisible(it,vis){ it.visible=vis; [it.layer,it.centroid,it.iso].forEach(function(l){ if(!l||!map) return;
+    if(vis){ l.addTo(map); if(l===it.iso&&l.bringToBack) l.bringToBack(); } else map.removeLayer(l); });
+    if(vis&&it.layer&&it.layer.bringToFront) it.layer.bringToFront(); if(vis&&it.centroid&&it.centroid.bringToFront) it.centroid.bringToFront(); }
+  function drawnFC(){ var feats=[];
+    // --- elementos DIBUJADOS: capa polígonos / isócronas / centroides ---
+    drawnItems.forEach(function(it){
+      feats.push({type:'Feature', properties:Object.assign({capa:'poligono'}, it.props), geometry:it.layer.toGeoJSON().geometry});
+      if(it.centroid){ var cl=it.centroid.getLatLng();
+        feats.push({type:'Feature', properties:{capa:'centroide', ref:'Polígono '+it.n, tipo:it.props.tipo, escala:it.props.escala},
+          geometry:{type:'Point', coordinates:[cl.lng, cl.lat]}}); }
+      if(it.iso){ var g=it.iso.toGeoJSON(); var gs=(g.type==='FeatureCollection'?(g.features||[]):[g]).map(function(f){return f.geometry||f;}).filter(Boolean);
+        gs.forEach(function(gm){ feats.push({type:'Feature', properties:{capa:'isocrona', ref:'Polígono '+it.n, tipo:it.props.tipo, escala:it.props.escala, fuente_iso:(it.isoReal?'valhalla':'radio')}, geometry:gm}); }); }
+    });
+    // --- ESPACIOS SELECCIONADOS: los puntos fuente de las escalas VISIBLES (filtro por escala) ---
+    if(map && masterEsp && D && D.espacios){
+      D.espacios.forEach(function(e){ if(escVisible[e.escala]===false) return;  // escala filtrada → no exportar
+        feats.push({type:'Feature',
+          properties:{capa:'espacio', nombre:e.nombre||'', tipo:e.funcion, escala:e.escala, ha:e.ha, dist_m:e.dist_m},
+          geometry:{type:'Point', coordinates:[e.lon, e.lat]}}); });
+    }
+    return {type:'FeatureCollection', features:feats}; }
+  function espVisibleAlguna(){ if(!masterEsp) return false; return Object.keys(espByEsc).some(function(s){ return escVisible[s]!==false; }); }
+  function hayExportable(){ return drawnItems.length || espVisibleAlguna(); }
+  function toKML(fc){
+    function e(s){ return (''+s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+    function cc(r){ return r.map(function(p){ return p[0]+','+p[1]+',0'; }).join(' '); }
+    function gk(g){ if(!g) return '';
+      if(g.type==='Point') return '<Point><coordinates>'+g.coordinates[0]+','+g.coordinates[1]+',0</coordinates></Point>';
+      if(g.type==='LineString') return '<LineString><coordinates>'+cc(g.coordinates)+'</coordinates></LineString>';
+      if(g.type==='Polygon') return '<Polygon><outerBoundaryIs><LinearRing><coordinates>'+cc(g.coordinates[0])+'</coordinates></LinearRing></outerBoundaryIs></Polygon>';
+      if(g.type==='MultiPolygon') return g.coordinates.map(function(p){ return '<Polygon><outerBoundaryIs><LinearRing><coordinates>'+cc(p[0])+'</coordinates></LinearRing></outerBoundaryIs></Polygon>'; }).join(''); return ''; }
+    function pm(f){ var p=f.properties||{};
+      return '<Placemark><name>'+e(p.nombre||p.ref||p.capa||'espacio')+'</name><description>'+e('tipo='+(p.tipo||'')+'; escala='+(p.escala||'')+(p.ha?('; ha='+p.ha):'')+(p.longitud_m?('; long_m='+p.longitud_m):'')+(p.fuente_iso?('; iso='+p.fuente_iso):''))+'</description>'+gk(f.geometry)+'</Placemark>'; }
+    // agrupar en CAPAS (Folders de KML)
+    var CAPA_NOM={poligono:'Polígonos', isocrona:'Isócronas', centroide:'Centroides', espacio:'Espacios seleccionados'};
+    var byCapa={}; (fc.features||[]).forEach(function(f){ var c=(f.properties&&f.properties.capa)||'otros'; (byCapa[c]=byCapa[c]||[]).push(f); });
+    var folders=['poligono','isocrona','centroide','espacio'].filter(function(c){ return byCapa[c]&&byCapa[c].length; }).map(function(c){
+      return '<Folder><name>'+e(CAPA_NOM[c]||c)+'</name>'+byCapa[c].map(pm).join('')+'</Folder>'; }).join('');
+    return '<?xml version="1.0" encoding="UTF-8"?>\n<kml xmlns="http://www.opengis.net/kml/2.2"><Document><name>Espacios (ECOURBA)</name>'+folders+'</Document></kml>'; }
+  function drawDownload(text,name,type){ var b=new Blob([text],{type:type}); downloadBlob(b,name); }
+  function downloadBlob(blob,name){ var u=URL.createObjectURL(blob), a=document.createElement('a');
+    a.href=u; a.download=name; document.body.appendChild(a); a.click(); document.body.removeChild(a); setTimeout(function(){URL.revokeObjectURL(u);},1500); }
+  /* --- Exportar el mapa a PNG / PDF (html2canvas + jsPDF) --- */
+  function exportMap(kind){
+    if(!window.html2canvas){ alert('Falta html2canvas (requiere internet).'); return; }
+    var el=document.getElementById('lmap'); if(!el) return;
+    var cc=el.querySelector('.leaflet-control-container'); if(cc) cc.style.visibility='hidden';
+    var bp=document.getElementById('map-png'), bd=document.getElementById('map-pdf');
+    if(bp) bp.disabled=true; if(bd) bd.disabled=true;
+    html2canvas(el,{useCORS:true, allowTaint:false, backgroundColor:'#ffffff', logging:false, scale:Math.min(2, window.devicePixelRatio||1)})
+      .then(function(canvas){ if(cc) cc.style.visibility=''; if(bp) bp.disabled=false; if(bd) bd.disabled=false;
+        if(kind==='png'){ canvas.toBlob(function(b){ downloadBlob(b,'mapa_ecourba.png'); },'image/png'); return; }
+        var img=canvas.toDataURL('image/png'), w=canvas.width, h=canvas.height;
+        var J=(window.jspdf&&window.jspdf.jsPDF)||window.jsPDF; if(!J){ alert('Falta jsPDF.'); return; }
+        var pdf=new J({orientation:w>=h?'landscape':'portrait', unit:'pt', format:[w,h]});
+        pdf.addImage(img,'PNG',0,0,w,h); pdf.save('mapa_ecourba.pdf'); })
+      .catch(function(e){ if(cc) cc.style.visibility=''; if(bp) bp.disabled=false; if(bd) bd.disabled=false;
+        alert('No se pudo exportar el mapa: '+((e&&e.message)||e)); });
+  }
+  function renderDrawLayers(){
+    var wrap=document.getElementById('draw-layers'), st=document.getElementById('draw-status');
+    var bg=document.getElementById('draw-geojson'), bk=document.getElementById('draw-kml'), bc=document.getElementById('draw-clear');
+    // descargas siempre disponibles (incluyen lo dibujado + espacios seleccionados); "Borrar todo" solo si hay dibujo
+    [bg,bk].forEach(function(b){ if(b) b.style.display=''; });
+    if(bc) bc.style.display=drawnItems.length?'':'none';
+    if(st) st.innerHTML=drawnItems.length
+      ? ('<b>'+drawnItems.length+' geometría(s) dibujada(s).</b> La descarga incluye polígonos, isócronas, centroides y los espacios seleccionados. Isócronas oficiales: correr <code style="font-size:10.5px">15_cargar_externo.py</code>.')
+      : 'La descarga incluye los <b>espacios seleccionados</b> (puntos visibles) + lo que dibujes (polígonos, isócronas, centroides).';
+    if(!wrap) return;
+    if(!drawnItems.length){ wrap.innerHTML=''; return; }
+    wrap.innerHTML=drawnItems.map(function(it){
+      var lab = it.kind==='poly' ? ('Polígono '+it.n+' · '+it.props.escala+' · '+(FUN_LABEL[it.props.tipo]||it.props.tipo)+(it.iso?(it.isoReal?' · isócrona':' · radio≈'):' · …'))
+              : it.kind==='line' ? ('Línea '+it.n+' · '+(it.props.longitud_m||0)+' m')
+              : ('Punto '+it.n+' · '+(FUN_LABEL[it.props.tipo]||it.props.tipo));
+      return '<label class="prow" style="cursor:pointer;padding:2px 0"><input type="checkbox" data-di="'+it.id+'" '+(it.visible?'checked':'')+'>'+
+        '<span class="sw" style="background:'+funCol(it.props.tipo)+'"></span><span class="lab" style="font-size:11.5px">'+lab+'</span></label>'; }).join('');
+    [].forEach.call(wrap.querySelectorAll('input[data-di]'), function(cb){ var id=cb.getAttribute('data-di');
+      cb.addEventListener('change', function(){ for(var k=0;k<drawnItems.length;k++){ if(drawnItems[k].id===id){ drawSetVisible(drawnItems[k],cb.checked); break; } } }); }); }
+  function drawIsocrona(it, cLat, cLon, distKm, col){
+    var payload={locations:[{lat:cLat,lon:cLon}], costing:'pedestrian', costing_options:{pedestrian:{walking_speed:4.8}}, contours:[{distance:distKm}], polygons:true, denoise:0.4, generalize:15};
+    fetch('/valhalla/isochrone',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)})
+      .then(function(r){ if(!r.ok) throw 0; return r.json(); })
+      .then(function(fc){ it.iso=L.geoJSON(fc,{style:{color:col,weight:1.5,fillColor:col,fillOpacity:.15,renderer:canvas}});
+        it.isoReal=true; it.iso.bindPopup('<b>Isócrona (Valhalla · red vial)</b><br>~'+Math.round(distKm*1000)+' m peatonales desde el centroide.');
+        if(it.visible){ it.iso.addTo(map); it.iso.bringToBack(); if(it.layer.bringToFront) it.layer.bringToFront(); } renderDrawLayers(); })
+      .catch(function(){ var buf=turf.buffer(turf.point([cLon,cLat]), distKm, {units:'kilometers'});
+        it.iso=L.geoJSON(buf,{style:{color:col,weight:1.5,dashArray:'4 3',fillColor:col,fillOpacity:.1,renderer:canvas}});
+        it.isoReal=false; it.iso.bindPopup('<b>Aproximación (radio recto)</b><br>~'+Math.round(distKm*1000)+' m — <i>no sigue la red vial</i>. Para la isócrona real corre el script 15 (Valhalla), o sirve el sitio con <code>serve.py</code>.');
+        if(it.visible){ it.iso.addTo(map); it.iso.bringToBack(); if(it.layer.bringToFront) it.layer.bringToFront(); } renderDrawLayers(); }); }
+  function setupDraw(map){
+    if(!map || !map.pm || !window.turf){ return; }
+    drawnItems=[]; drawSeq={poly:0,line:0,point:0};
+    try{ map.pm.setLang('es'); }catch(e){}
+    map.pm.addControls({ position:'topleft', drawMarker:true, drawPolyline:true, drawPolygon:true,
+      drawCircle:false, drawCircleMarker:false, drawRectangle:true, drawText:false,
+      editMode:true, dragMode:true, cutPolygon:false, rotateMode:false, removalMode:true });
+    map.on('pm:create', function(e){ var layer=e.layer, shp=e.shape;
+      var fun=(document.getElementById('up-fun')||{}).value||'parque', col=funCol(fun);
+      var gj=layer.toGeoJSON(), props={nombre:'(dibujado)', tipo:fun};
+      var it={id:'d'+(_did++), layer:layer, centroid:null, iso:null, isoReal:false, visible:true, props:props};
+      if(shp==='Polygon' || shp==='Rectangle'){ it.kind='poly'; it.n=++drawSeq.poly;
+        var ha=turf.area(gj)/10000, esc=drawEscala(ha); props.escala=esc; props.ha=+ha.toFixed(2);
+        if(layer.setStyle) layer.setStyle({color:col,weight:2,fillColor:col,fillOpacity:.35});
+        layer.bindPopup('<b>Polígono '+it.n+'</b><br><span class="pk">Tipología (NOM):</span> '+(FUN_LABEL[fun]||fun)+'<br><span class="pk">Escala:</span> '+esc+' · '+ha.toFixed(2)+' ha<br><span class="pk">Isócrona D2:</span> '+Math.round(DRAW_D2_KM[esc]*1000)+' m');
+        var c=turf.centroid(gj), cLon=c.geometry.coordinates[0], cLat=c.geometry.coordinates[1];
+        it.centroid=L.circleMarker([cLat,cLon],{radius:4,color:'#222',weight:1.5,fillColor:'#fff',fillOpacity:1,renderer:canvas}).bindPopup('<b>Centroide</b><br>Fuente de la isócrona (Turf.js).');
+        it.centroid.addTo(map);
+        drawIsocrona(it, cLat, cLon, DRAW_D2_KM[esc], col);
+      } else if(shp==='Line'){ it.kind='line'; it.n=++drawSeq.line;
+        var km=turf.length(gj,{units:'kilometers'}); props.longitud_m=Math.round(km*1000);
+        if(layer.setStyle) layer.setStyle({color:'#35615D',weight:3});
+        layer.bindPopup('<b>Línea '+it.n+'</b><br><span class="pk">Longitud:</span> '+(km*1000).toFixed(0)+' m');
+      } else { it.kind='point'; it.n=++drawSeq.point;
+        props.escala='A1'; props.estatus='pendiente';
+        layer.bindPopup('<b>Punto '+it.n+'</b><br><span class="pk">Tipología (NOM):</span> '+(FUN_LABEL[fun]||fun)+'<br><span class="pk">Escala:</span> A1 (preliminar, sin área)');
+      }
+      layer.feature={type:'Feature',properties:props,geometry:gj.geometry};
+      drawnItems.push(it); renderDrawLayers(); if(layer.openPopup) layer.openPopup();
+    });
+    map.on('pm:remove', function(e){ for(var i=0;i<drawnItems.length;i++){ if(drawnItems[i].layer===e.layer){ var it=drawnItems[i];
+      if(it.centroid) map.removeLayer(it.centroid); if(it.iso) map.removeLayer(it.iso); drawnItems.splice(i,1); renderDrawLayers(); break; } } });
+    renderDrawLayers();
+  }
+
   function buildMap(){
     D=curMapData();
     if(!D){ document.getElementById('lmap').innerHTML='<p style="padding:30px">Falta '+(mapScope==='nac'?'mapa_nacional_datos.js':'mapa_datos.js')+'</p>'; return; }
@@ -873,9 +1021,9 @@
     map=L.map('lmap',{preferCanvas:true, zoomControl:true}).setView(isNac?[23.6,-102.5]:[19.36,-99.13], isNac?5:11);
     window._lmap=map;
     bases={
-      calles:L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap'}),
-      claro:L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',{maxZoom:20,subdomains:'abcd',attribution:'© OpenStreetMap © CARTO'}),
-      satelite:L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{maxZoom:19,attribution:'© Esri World Imagery'}),
+      calles:L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,crossOrigin:true,attribution:'© OpenStreetMap'}),
+      claro:L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',{maxZoom:20,subdomains:'abcd',crossOrigin:true,attribution:'© OpenStreetMap © CARTO'}),
+      satelite:L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{maxZoom:19,crossOrigin:true,attribution:'© Esri World Imagery'}),
     };
     baseActual=bases.calles.addTo(map);
     [].forEach.call(document.getElementById('seg-base').children, function(x){ x.classList.toggle('on', x.getAttribute('data-base')==='calles'); });
@@ -890,25 +1038,26 @@
     covData={}; modes.forEach(function(mode){ covData[mode]=D.coverage[mode]||{}; });
     var DEF_ON=defaultOn();
 
-    espLyr=L.layerGroup();
-    var funPresentes={};
-    (D.espacios||[]).forEach(function(e){ var col=funCol(e.funcion); funPresentes[e.funcion||'_']=true;
-      var m=L.circleMarker([e.lat,e.lon],{renderer:canvas,radius:3.2,color:'#fff',weight:.7,fillColor:col,fillOpacity:.95});
-      m.bindPopup('<b>'+(e.nombre||'(sin nombre)')+'</b><br><span class="pk">Tipología (NOM):</span> '+(FUN_LABEL[e.funcion]||e.funcion||'—')+'<br><span class="pk">Escala:</span> '+e.escala+' · '+(e.ha||0)+' ha<br><span class="pk">Estado:</span> '+(e.sistema?'en sistema (D2)':'aislado (D1)')+' · '+(e.dist_m||0)+' m');
-      espLyr.addLayer(m); });
-    layers['espacios']=espLyr;
-    // leyenda de tipología (solo funciones presentes en el ámbito actual)
+    // puntos agrupados POR ESCALA (color = escala; filtro por escala; tooltip al pasar el cursor)
+    espByEsc={}; escVisible={}; masterEsp=!!DEF_ON.espacios;
+    var escPres={};
+    (D.espacios||[]).forEach(function(e){ var esc=e.escala||'A1', col=ESC_COL[esc]||'#6C7A72'; escPres[esc]=true;
+      if(!espByEsc[esc]){ espByEsc[esc]=L.layerGroup(); escVisible[esc]=true; }
+      var ha=e.ha||0, m2=Math.round(ha*10000);
+      var m=L.circleMarker([e.lat,e.lon],{renderer:canvas,radius:3.4,color:'#fff',weight:.7,fillColor:col,fillOpacity:.95});
+      m.bindTooltip('<b>'+(FUN_LABEL[e.funcion]||e.funcion||'espacio')+'</b><br><span class="pk">Escala (NOM):</span> '+esc+'<br><span class="pk">Dimensiones:</span> '+ha.toLocaleString('es-MX')+' ha ('+m2.toLocaleString('es-MX')+' m²)', {sticky:true, direction:'top', opacity:.96});
+      m.bindPopup('<b>'+(e.nombre||'(sin nombre)')+'</b><br><span class="pk">Tipología (NOM):</span> '+(FUN_LABEL[e.funcion]||e.funcion||'—')+'<br><span class="pk">Escala:</span> '+esc+' · '+ha+' ha<br><span class="pk">Estado:</span> '+(e.sistema?'en sistema (D2)':'aislado (D1)')+' · '+(e.dist_m||0)+' m');
+      espByEsc[esc].addLayer(m); });
+    // chips CLICABLES por escala (mostrar/ocultar cada escala)
     var flg=document.getElementById('fun-legend');
-    if(flg){ var orden=['parque','jardin','area_verde','deportivo','plaza','anp','huerto','mirador'];
-      flg.innerHTML=orden.filter(function(f){ return funPresentes[f]; }).map(function(f){
-        return '<span style="display:inline-flex;align-items:center;gap:5px;font-size:11px;color:var(--muted)">'+
-          '<span style="width:9px;height:9px;border-radius:50%;background:'+FUN_COL[f]+';border:1px solid #fff5"></span>'+FUN_LABEL[f]+'</span>'; }).join(''); }
-
-    var ordenBanda=['casi','deficit_medio','desierto'];
-    ordenBanda.forEach(function(b){ var rec=(D.sin_cobertura||{})[b]; if(!rec) return; var col=(BANDA[b]||{}).c||'#C56A3A';
-      var lyr=L.geoJSON({type:'Feature',geometry:rec.geometry,properties:{}},{style:{color:col,weight:.6,opacity:.9,fillColor:col,fillOpacity:.5,renderer:canvas}});
-      lyr.bindPopup('<b>'+((BANDA[b]||{}).label||b)+'</b><br><span class="pk">Manzanas:</span> '+rec.manzanas.toLocaleString('es-MX')+'<br><span class="pk">Población:</span> '+rec.poblacion.toLocaleString('es-MX'));
-      layers['sin_'+b]=lyr; });
+    if(flg){ var escOrd=['A1','B2','C3','D4','E5'], ESCLAB={A1:'A-1',B2:'B-2',C3:'C-3',D4:'D-4',E5:'E-5'};
+      flg.innerHTML='<span style="font-size:10.5px;color:var(--muted);width:100%">Filtrar por escala:</span>'+escOrd.filter(function(s){return escPres[s];}).map(function(s){
+        return '<span class="esctoggle" data-esc="'+s+'" title="Mostrar/ocultar '+ESCLAB[s]+'" style="display:inline-flex;align-items:center;gap:5px;font-size:11px;color:var(--muted);cursor:pointer;user-select:none">'+
+          '<span style="width:10px;height:10px;border-radius:50%;background:'+ESC_COL[s]+';border:1px solid #fff5"></span>'+ESCLAB[s]+'</span>'; }).join('');
+      flg.onclick=function(e){ var t=e.target.closest('.esctoggle'); if(!t) return; var s=t.getAttribute('data-esc');
+        escVisible[s]=!(escVisible[s]!==false); t.style.opacity=escVisible[s]?'1':'.35';
+        var cb=document.querySelector('[data-layer="espacios"] input'); if(cb&&!cb.checked){ cb.checked=true; masterEsp=true; }
+        syncEsp(); }; }
 
     var covRows=document.getElementById('cov-rows');
     COV.forEach(function(def){ var exists=modes.some(function(m){return (covData[m]||{})[def.id];}); if(!exists) return;
@@ -919,29 +1068,21 @@
       covRows.appendChild(row);
       if(on){ var l0=getCov(curMode,def.id); if(l0) l0.addTo(map); } });
 
-    document.getElementById('grp-sin').style.display=D.sin_cobertura?'':'none';
-    var sinRows=document.getElementById('sin-rows');
-    ordenBanda.forEach(function(b){ var id='sin_'+b; if(!layers[id]) return; var rec=D.sin_cobertura[b]; var on=!!DEF_ON[b];
-      var row=document.createElement('label'); row.className='prow';
-      row.innerHTML='<input type="checkbox" '+(on?'checked':'')+'><span class="sw" style="background:'+BANDA[b].c+';opacity:.7"></span><span class="lab">'+BANDA[b].label.split(' (')[0]+'</span><span class="meta">'+(rec.poblacion/1000).toFixed(0)+'k hab</span>';
-      row.querySelector('input').addEventListener('change', function(){ toggle(id,this.checked); });
-      sinRows.appendChild(row); if(on) layers[id].addTo(map); });
-
     var espCb=document.querySelector('[data-layer="espacios"] input'); if(espCb) espCb.checked=!!DEF_ON.espacios;
-    if(DEF_ON.espacios) espLyr.addTo(map);
+    masterEsp=!!DEF_ON.espacios; syncEsp();
     document.getElementById('n-esp').textContent=(D.espacios||[]).length.toLocaleString('es-MX');
 
     syncSeg(); renderKPIs(curMode);
     document.getElementById('foot').innerHTML = isNac
       ? 'Fuente: isócronas peatonales <b>Valhalla</b> (modo <b>distancia</b> · NOM) sobre inventario semilla <b>SCINCE servicios_a</b> de 32 estados. KPIs = <b>población con acceso</b> (script 12). 19,214 espacios (E-5 inexistente). Sin bandas de déficit a nivel nacional. Inventario PARCIAL → % son un piso.'
-      : 'Fuente: isócronas peatonales <b>Valhalla</b> por red vial. <b>Tiempo</b> = costing peatonal con <b>pendiente</b> (SRTM); <b>Distancia</b> = isodistancia NOM. En modo tiempo, E-5 (12 km) usa isodistancia. Sin cobertura = línea base Dijkstra (04). Contornos ~12 m.';
+      : 'Fuente: isócronas peatonales <b>Valhalla</b> por red vial. <b>Tiempo</b> = costing peatonal con <b>pendiente</b> (SRTM); <b>Distancia</b> = isodistancia NOM. En modo tiempo, E-5 (12 km) usa isodistancia. Contornos ~12 m.';
+    setupDraw(map);
   }
 
   function rebuildMap(){
     if(map){ map.remove(); map=null; window._lmap=null; }
     document.getElementById('cov-rows').innerHTML='';
-    document.getElementById('sin-rows').innerHTML='';
-    layers={}; covLayers={}; covChecked={}; espLyr=null;
+    layers={}; covLayers={}; covChecked={}; espLyr=null; espByEsc={}; escVisible={};
     buildMap();
   }
 
@@ -952,7 +1093,7 @@
       map.removeLayer(baseActual); baseActual=bases[b]; baseActual.addTo(map);
       [].forEach.call(this.children, function(x){ x.classList.toggle('on', x===e.target); }); });
     document.getElementById('seg-modo').addEventListener('click', function(e){ var m=e.target.getAttribute('data-modo'); if(m) setPlatMode(m); });
-    document.querySelector('[data-layer="espacios"] input').addEventListener('change', function(){ toggle('espacios',this.checked); });
+    document.querySelector('[data-layer="espacios"] input').addEventListener('change', function(){ masterEsp=this.checked; syncEsp(); });
     var panel=document.getElementById('panel'), btn=document.getElementById('btnToggle');
     btn.addEventListener('click', function(){ var vis=panel.style.display!=='none'; panel.style.display=vis?'none':'block'; btn.textContent=vis?'Capas ▾':'Capas ▴'; });
     document.getElementById('seg-scope-mapa').addEventListener('click', function(e){
@@ -962,6 +1103,17 @@
       mapScope=sc;
       [].forEach.call(this.querySelectorAll('button'), function(x){ x.classList.toggle('on', x===b); });
       rebuildMap(); if(map) setTimeout(function(){ map.invalidateSize(); }, 60); });
+    // dibujo: descargar GeoJSON / KML / borrar todo (una sola vez; usan drawnItems vigente)
+    var bg=document.getElementById('draw-geojson'), bk=document.getElementById('draw-kml'), bc=document.getElementById('draw-clear');
+    if(bg) bg.addEventListener('click', function(){ if(hayExportable()) drawDownload(JSON.stringify(drawnFC()),'espacios_ecourba.geojson','application/geo+json'); });
+    if(bk) bk.addEventListener('click', function(){ if(hayExportable()) drawDownload(toKML(drawnFC()),'espacios_ecourba.kml','application/vnd.google-earth.kml+xml'); });
+    if(bc) bc.addEventListener('click', function(){ if(!map) return;
+      drawnItems.forEach(function(it){ [it.layer,it.centroid,it.iso].forEach(function(l){ if(l&&map.hasLayer(l)) map.removeLayer(l); }); });
+      drawnItems=[]; renderDrawLayers(); });
+    // exportar el mapa a imagen
+    var mpng=document.getElementById('map-png'), mpdf=document.getElementById('map-pdf');
+    if(mpng) mpng.addEventListener('click', function(){ exportMap('png'); });
+    if(mpdf) mpdf.addEventListener('click', function(){ exportMap('pdf'); });
   }
 
   function initMap(){ if(mapReady) return; mapReady=true; bindMapStatic(); buildMap(); }
