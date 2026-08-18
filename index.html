@@ -355,6 +355,10 @@
         <span class="lab">Espacios públicos (puntos · color = escala)</span>
         <span class="meta" id="n-esp"></span>
       </div>
+      <div id="ent-filter-row" style="display:none;align-items:center;gap:8px;padding:4px 2px 2px 26px">
+        <label style="font-size:12px;color:var(--muted);white-space:nowrap">Estado:</label>
+        <select id="ent-filter" style="flex:1;font-size:12px;padding:3px;background:var(--surface-2);color:var(--ink);border:1px solid var(--line);border-radius:6px"></select>
+      </div>
       <div id="fun-legend" style="display:flex;flex-wrap:wrap;gap:6px 14px;padding:4px 2px 6px 26px"></div>
       <div class="grp">Cargar espacios (KML / GeoJSON)</div>
       <div style="padding:2px 2px 4px">
@@ -431,7 +435,7 @@
 <script src="https://unpkg.com/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
 <script src="dashboard_datos.js"></script>
 <script src="mapa_datos.js?v=34"></script>
-<script src="mapa_nacional_datos.js?v=38"></script>
+<script src="mapa_nacional_datos.js?v=39"></script>
 <script src="nacional_datos.js?v=35"></script>
 <script>
 (function(){
@@ -820,7 +824,7 @@
   var mapScope='cdmx';
   var map=null, bases=null, baseActual=null, canvas=null, D=null;
   var layers={}, covLayers={}, covData={}, covChecked={}, curMode='distance', espLyr=null;
-  var espByEsc={}, escVisible={}, masterEsp=true;  // puntos por ESCALA (filtro)
+  var espByEsc={}, escVisible={}, masterEsp=true, selEnt='';  // puntos por ESCALA + filtro por ESTADO
   var mapStaticBound=false;
   function defaultOn(){ return mapScope==='nac' ? {espacios:true} : {cobertura_A1:true, espacios:true}; }
   function covDef(id){ for(var i=0;i<COV.length;i++){ if(COV[i].id===id) return COV[i]; } return null; }
@@ -862,6 +866,48 @@
   function syncEsp(){ if(!map) return; Object.keys(espByEsc).forEach(function(s){ var g=espByEsc[s];
     if(masterEsp && escVisible[s]!==false){ g.addTo(map); g.eachLayer(function(x){ x.bringToFront&&x.bringToFront(); }); }
     else map.removeLayer(g); }); }
+  var ESCLAB={A1:'A-1',B2:'B-2',C3:'C-3',D4:'D-4',E5:'E-5'};
+  // (re)construye los puntos agrupados por escala, filtrando por el ESTADO seleccionado (selEnt)
+  function buildEspacios(){ if(!map) return;
+    Object.keys(espByEsc).forEach(function(s){ if(map.hasLayer(espByEsc[s])) map.removeLayer(espByEsc[s]); });
+    espByEsc={};
+    (D.espacios||[]).forEach(function(e){ if(selEnt && e.ent!==selEnt) return;
+      var esc=e.escala||'A1', col=ESC_COL[esc]||'#6C7A72';
+      if(!espByEsc[esc]) espByEsc[esc]=L.layerGroup();
+      var ha=e.ha||0, m2=Math.round(ha*10000);
+      var m=L.circleMarker([e.lat,e.lon],{renderer:canvas,radius:3.4,color:'#fff',weight:.7,fillColor:col,fillOpacity:.95});
+      m.bindTooltip('<b>'+(FUN_LABEL[e.funcion]||e.funcion||'espacio')+'</b><br><span class="pk">Escala (NOM):</span> '+esc+'<br><span class="pk">Dimensiones:</span> '+ha.toLocaleString('es-MX')+' ha ('+m2.toLocaleString('es-MX')+' m²)', {sticky:true, direction:'top', opacity:.96});
+      m.bindPopup('<b>'+(e.nombre||'(sin nombre)')+'</b><br><span class="pk">Tipología (NOM):</span> '+(FUN_LABEL[e.funcion]||e.funcion||'—')+'<br><span class="pk">Escala:</span> '+esc+' · '+ha+' ha<br><span class="pk">Estado:</span> '+(e.sistema?'en sistema (D2)':'aislado (D1)')+' · '+(e.dist_m||0)+' m');
+      espByEsc[esc].addLayer(m); });
+    syncEsp();
+    var nEl=document.getElementById('n-esp'); if(nEl){ var n=(D.espacios||[]).filter(function(e){return !selEnt||e.ent===selEnt;}).length; nEl.textContent=n.toLocaleString('es-MX'); } }
+  // chips clicables por escala (una sola vez por build)
+  function renderEscChips(escPres){ var flg=document.getElementById('fun-legend'); if(!flg) return;
+    var escOrd=['A1','B2','C3','D4','E5'];
+    flg.innerHTML='<span style="font-size:10.5px;color:var(--muted);width:100%">Filtrar por escala:</span>'+escOrd.filter(function(s){return escPres[s];}).map(function(s){
+      return '<span class="esctoggle" data-esc="'+s+'" title="Mostrar/ocultar '+ESCLAB[s]+'" style="display:inline-flex;align-items:center;gap:5px;font-size:11px;color:var(--muted);cursor:pointer;user-select:none">'+
+        '<span style="width:10px;height:10px;border-radius:50%;background:'+ESC_COL[s]+';border:1px solid #fff5"></span>'+ESCLAB[s]+'</span>'; }).join('');
+    flg.onclick=function(e){ var t=e.target.closest('.esctoggle'); if(!t) return; var s=t.getAttribute('data-esc');
+      escVisible[s]=!(escVisible[s]!==false); t.style.opacity=escVisible[s]?'1':'.35';
+      var cb=document.querySelector('[data-layer="espacios"] input'); if(cb&&!cb.checked){ cb.checked=true; masterEsp=true; }
+      syncEsp(); }; }
+  // límites [ [s,w],[n,e] ] de un estado a partir de su geometría (NAC.estados)
+  function entBounds(cve){ var st=null; ((window.NAC&&window.NAC.estados)||[]).forEach(function(x){ if(x.cve===cve) st=x; });
+    if(!st||!st.geometry) return null; var mnx=180,mny=90,mxx=-180,mxy=-90;
+    function ring(r){ r.forEach(function(p){ if(p[0]<mnx)mnx=p[0]; if(p[0]>mxx)mxx=p[0]; if(p[1]<mny)mny=p[1]; if(p[1]>mxy)mxy=p[1]; }); }
+    var g=st.geometry; if(g.type==='Polygon') g.coordinates.forEach(ring); else if(g.type==='MultiPolygon') g.coordinates.forEach(function(poly){ poly.forEach(ring); });
+    return (mxx>-180)?[[mny,mnx],[mxy,mxx]]:null; }
+  // selector de estado (solo en ámbito nacional)
+  function setupEntFilter(isNac){ var row=document.getElementById('ent-filter-row'), sel=document.getElementById('ent-filter');
+    if(!row||!sel) return;
+    if(!isNac){ row.style.display='none'; return; }
+    row.style.display='flex';
+    var ents=((window.NAC&&window.NAC.estados)||[]).slice().sort(function(a,b){ return a.nombre.localeCompare(b.nombre); });
+    sel.innerHTML='<option value="">Todos los estados ('+ents.length+')</option>'+ents.map(function(x){ return '<option value="'+x.cve+'">'+x.nombre+'</option>'; }).join('');
+    sel.value=selEnt||'';
+    sel.onchange=function(){ selEnt=sel.value; buildEspacios();
+      if(selEnt){ var b=entBounds(selEnt); if(b) try{ map.fitBounds(b,{padding:[24,24],animate:false}); }catch(e){} }
+      else { try{ map.setView([23.6,-102.5],5,{animate:false}); }catch(e){} } }; }
   function pct(m,esc){ var r=(m||{})['cobertura_'+esc]||{}; return r.pct_poblacion; }
   function dpp(esc){ var t=pct((D.meta||{}).time,esc), d=pct((D.meta||{}).distance,esc);
     if(t==null||d==null) return ''; var dd=t-d; return ' ('+(dd>=0?'+':'')+dd.toFixed(1)+' pp)'; }
@@ -902,9 +948,10 @@
     });
     // --- ESPACIOS SELECCIONADOS: los puntos fuente de las escalas VISIBLES (filtro por escala) ---
     if(map && masterEsp && D && D.espacios){
-      D.espacios.forEach(function(e){ if(escVisible[e.escala]===false) return;  // escala filtrada → no exportar
+      D.espacios.forEach(function(e){ if(selEnt && e.ent!==selEnt) return;      // estado filtrado
+        if(escVisible[e.escala]===false) return;                                // escala filtrada
         feats.push({type:'Feature',
-          properties:{capa:'espacio', nombre:e.nombre||'', tipo:e.funcion, escala:e.escala, ha:e.ha, dist_m:e.dist_m},
+          properties:{capa:'espacio', nombre:e.nombre||'', tipo:e.funcion, escala:e.escala, ent:e.ent, ha:e.ha, dist_m:e.dist_m},
           geometry:{type:'Point', coordinates:[e.lon, e.lat]}}); });
     }
     return {type:'FeatureCollection', features:feats}; }
@@ -1035,26 +1082,14 @@
     covData={}; modes.forEach(function(mode){ covData[mode]=D.coverage[mode]||{}; });
     var DEF_ON=defaultOn();
 
-    // puntos agrupados POR ESCALA (color = escala; filtro por escala; tooltip al pasar el cursor)
-    espByEsc={}; escVisible={}; masterEsp=!!DEF_ON.espacios;
-    var escPres={};
-    (D.espacios||[]).forEach(function(e){ var esc=e.escala||'A1', col=ESC_COL[esc]||'#6C7A72'; escPres[esc]=true;
-      if(!espByEsc[esc]){ espByEsc[esc]=L.layerGroup(); escVisible[esc]=true; }
-      var ha=e.ha||0, m2=Math.round(ha*10000);
-      var m=L.circleMarker([e.lat,e.lon],{renderer:canvas,radius:3.4,color:'#fff',weight:.7,fillColor:col,fillOpacity:.95});
-      m.bindTooltip('<b>'+(FUN_LABEL[e.funcion]||e.funcion||'espacio')+'</b><br><span class="pk">Escala (NOM):</span> '+esc+'<br><span class="pk">Dimensiones:</span> '+ha.toLocaleString('es-MX')+' ha ('+m2.toLocaleString('es-MX')+' m²)', {sticky:true, direction:'top', opacity:.96});
-      m.bindPopup('<b>'+(e.nombre||'(sin nombre)')+'</b><br><span class="pk">Tipología (NOM):</span> '+(FUN_LABEL[e.funcion]||e.funcion||'—')+'<br><span class="pk">Escala:</span> '+esc+' · '+ha+' ha<br><span class="pk">Estado:</span> '+(e.sistema?'en sistema (D2)':'aislado (D1)')+' · '+(e.dist_m||0)+' m');
-      espByEsc[esc].addLayer(m); });
-    // chips CLICABLES por escala (mostrar/ocultar cada escala)
-    var flg=document.getElementById('fun-legend');
-    if(flg){ var escOrd=['A1','B2','C3','D4','E5'], ESCLAB={A1:'A-1',B2:'B-2',C3:'C-3',D4:'D-4',E5:'E-5'};
-      flg.innerHTML='<span style="font-size:10.5px;color:var(--muted);width:100%">Filtrar por escala:</span>'+escOrd.filter(function(s){return escPres[s];}).map(function(s){
-        return '<span class="esctoggle" data-esc="'+s+'" title="Mostrar/ocultar '+ESCLAB[s]+'" style="display:inline-flex;align-items:center;gap:5px;font-size:11px;color:var(--muted);cursor:pointer;user-select:none">'+
-          '<span style="width:10px;height:10px;border-radius:50%;background:'+ESC_COL[s]+';border:1px solid #fff5"></span>'+ESCLAB[s]+'</span>'; }).join('');
-      flg.onclick=function(e){ var t=e.target.closest('.esctoggle'); if(!t) return; var s=t.getAttribute('data-esc');
-        escVisible[s]=!(escVisible[s]!==false); t.style.opacity=escVisible[s]?'1':'.35';
-        var cb=document.querySelector('[data-layer="espacios"] input'); if(cb&&!cb.checked){ cb.checked=true; masterEsp=true; }
-        syncEsp(); }; }
+    // puntos por ESCALA (color=escala; tooltip) + filtro por ESCALA (chips) y por ESTADO (selector)
+    selEnt='';
+    var escPresAll={}; (D.espacios||[]).forEach(function(e){ escPresAll[e.escala||'A1']=true; });
+    escVisible={}; Object.keys(escPresAll).forEach(function(s){ escVisible[s]=true; });
+    masterEsp=!!DEF_ON.espacios;
+    renderEscChips(escPresAll);
+    buildEspacios();
+    setupEntFilter(isNac);
 
     var covRows=document.getElementById('cov-rows');
     COV.forEach(function(def){ var exists=modes.some(function(m){return (covData[m]||{})[def.id];}); if(!exists) return;
