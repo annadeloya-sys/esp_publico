@@ -54,11 +54,10 @@
     background:linear-gradient(100deg,#2C524E 0%,#35615D 45%,#568186 100%);
     color:#fff;border-bottom:1px solid rgba(255,255,255,.12)}
   .hbar{padding:10px 20px;display:flex;align-items:center;gap:14px;flex-wrap:wrap}
-  .brand{display:flex;align-items:center;gap:11px}
-  .logo{width:36px;height:36px;border-radius:10px;background:rgba(255,255,255,.14);
-    border:1px solid rgba(255,255,255,.25);display:grid;place-items:center}
-  .brand b{font-size:18px;font-weight:800;letter-spacing:.14em}
-  .brand span{display:block;font-size:10px;letter-spacing:.2em;opacity:.82;font-weight:600}
+  .brand{display:flex;align-items:center;gap:12px}
+  .logo-img{height:34px;width:auto;display:block;filter:brightness(0) invert(1)}
+  .brand-sub{font-size:10px;line-height:1.15;letter-spacing:.22em;font-weight:700;opacity:.9;
+    padding-left:12px;border-left:1px solid rgba(255,255,255,.35)}
   nav.nav{display:flex;gap:4px;margin-left:10px}
   nav.nav a{padding:7px 15px;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;
     color:rgba(255,255,255,.82);text-decoration:none;letter-spacing:.01em;user-select:none}
@@ -232,10 +231,8 @@
 <header>
   <div class="hbar">
     <div class="brand">
-      <div class="logo" aria-hidden="true">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 20h18"/><path d="M6 20V9l6-5 6 5v11"/><path d="M10 20v-5h4v5"/></svg>
-      </div>
-      <div><b>ECOURBA</b><span>ESPACIOS PÚBLICOS</span></div>
+      <img src="logo.png" alt="ECOURBA · Infraestructura Sostenible" class="logo-img">
+      <span class="brand-sub">ESPACIOS<br>PÚBLICOS</span>
     </div>
     <nav class="nav" id="nav">
       <a data-view="resumen">Resumen</a>
