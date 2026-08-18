@@ -271,7 +271,7 @@
         </div>
         <div class="sp"></div>
         <div id="ent-sel-res-wrap" style="display:none;align-items:center;gap:8px">
-          <label style="font-size:12px;color:var(--muted)">Estado:</label>
+          <label style="font-size:12px;color:var(--muted)">Analizar estado:</label>
           <select id="ent-filter-res" class="entsel"></select>
         </div>
       </div>
@@ -337,6 +337,10 @@
         <button data-mscope="cdmx" class="on">CDMX · detallado</button>
         <button data-mscope="nac">Nacional · SCINCE</button>
       </div>
+      <div id="ent-filter-row" style="display:none;align-items:center;gap:8px;margin-top:8px">
+        <label style="font-size:12px;color:var(--muted);white-space:nowrap">Analizar estado:</label>
+        <select id="ent-filter" class="entsel" style="flex:1"></select>
+      </div>
       <div class="grp">Mapa base</div>
       <div class="seg" id="seg-base">
         <button data-base="calles" class="on">Calles</button>
@@ -361,10 +365,6 @@
         <span class="dot" style="background:#35615D"></span>
         <span class="lab">Espacios públicos (puntos · color = escala)</span>
         <span class="meta" id="n-esp"></span>
-      </div>
-      <div id="ent-filter-row" style="display:none;align-items:center;gap:8px;padding:4px 2px 2px 26px">
-        <label style="font-size:12px;color:var(--muted);white-space:nowrap">Estado:</label>
-        <select id="ent-filter" style="flex:1;font-size:12px;padding:3px;background:var(--surface-2);color:var(--ink);border:1px solid var(--line);border-radius:6px"></select>
       </div>
       <div id="fun-legend" style="display:flex;flex-wrap:wrap;gap:6px 14px;padding:4px 2px 6px 26px"></div>
       <div class="grp">Cargar espacios (KML / GeoJSON)</div>
@@ -410,7 +410,7 @@
           <button data-scope="nac">Nacional · SCINCE</button>
         </div>
         <div id="ent-sel-terr-wrap" style="display:none;align-items:center;gap:8px;margin-left:12px">
-          <label style="font-size:12px;color:var(--muted)">Estado:</label>
+          <label style="font-size:12px;color:var(--muted)">Analizar estado:</label>
           <select id="ent-filter-terr" class="entsel"></select>
         </div>
         <div class="sp"></div>
