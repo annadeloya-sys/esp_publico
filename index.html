@@ -1,0 +1,1082 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ECOURBA · Plataforma de espacios públicos — NOM-001-SEDATU</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+  integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
+<style>
+  :root{
+    --ground:#FAF8F3; --surface:#FFFFFF; --surface-2:#F3EFE7;
+    --ink:#243A34; --muted:#6C7A72; --line:#E7E1D4;
+    --teal:#35615D; --teal2:#568186; --brown:#A7805F;
+    --good:#6E8B3D; --warn:#C7B850; --crit:#C56A3A;
+    --shadow:0 1px 2px rgba(36,58,52,.06),0 6px 24px rgba(36,58,52,.06);
+    --r:20px; --r-sm:12px;
+    --seq0:#EFE3C9; --seq1:#E6C078; --seq2:#D89756; --seq3:#BE6F3F; --seq4:#8F4F33;
+    --font:system-ui,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  }
+  @media (prefers-color-scheme:dark){
+    :root{
+      --ground:#151F1C; --surface:#1E2A27; --surface-2:#243330;
+      --ink:#EAF1ED; --muted:#9DB0A8; --line:#2C3A35;
+      --teal:#6DA39D; --teal2:#7FB0B4; --brown:#C79E7C;
+      --good:#9CB86A; --warn:#D8C96A; --crit:#DB8354;
+      --shadow:0 1px 2px rgba(0,0,0,.3),0 8px 30px rgba(0,0,0,.35);
+    }
+  }
+  :root[data-theme="light"]{
+    --ground:#FAF8F3; --surface:#FFFFFF; --surface-2:#F3EFE7;
+    --ink:#243A34; --muted:#6C7A72; --line:#E7E1D4;
+    --teal:#35615D; --teal2:#568186; --brown:#A7805F;
+    --good:#6E8B3D; --warn:#C7B850; --crit:#C56A3A;
+    --shadow:0 1px 2px rgba(36,58,52,.06),0 6px 24px rgba(36,58,52,.06);
+  }
+  :root[data-theme="dark"]{
+    --ground:#151F1C; --surface:#1E2A27; --surface-2:#243330;
+    --ink:#EAF1ED; --muted:#9DB0A8; --line:#2C3A35;
+    --teal:#6DA39D; --teal2:#7FB0B4; --brown:#C79E7C;
+    --good:#9CB86A; --warn:#D8C96A; --crit:#DB8354;
+    --shadow:0 1px 2px rgba(0,0,0,.3),0 8px 30px rgba(0,0,0,.35);
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{margin:0;display:flex;flex-direction:column;height:100vh;overflow:hidden;
+    background:var(--ground);color:var(--ink);font-family:var(--font);
+    line-height:1.5;-webkit-font-smoothing:antialiased;font-variant-numeric:tabular-nums}
+  a{color:inherit}
+  .wrap{max-width:1220px;margin:0 auto;padding:0 22px 64px}
+
+  /* ---------- Header / nav ---------- */
+  header{flex:0 0 auto;z-index:1000;
+    background:linear-gradient(100deg,#2C524E 0%,#35615D 45%,#568186 100%);
+    color:#fff;border-bottom:1px solid rgba(255,255,255,.12)}
+  .hbar{padding:10px 20px;display:flex;align-items:center;gap:14px;flex-wrap:wrap}
+  .brand{display:flex;align-items:center;gap:11px}
+  .logo{width:36px;height:36px;border-radius:10px;background:rgba(255,255,255,.14);
+    border:1px solid rgba(255,255,255,.25);display:grid;place-items:center}
+  .brand b{font-size:18px;font-weight:800;letter-spacing:.14em}
+  .brand span{display:block;font-size:10px;letter-spacing:.2em;opacity:.82;font-weight:600}
+  nav.nav{display:flex;gap:4px;margin-left:10px}
+  nav.nav a{padding:7px 15px;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;
+    color:rgba(255,255,255,.82);text-decoration:none;letter-spacing:.01em;user-select:none}
+  nav.nav a:hover{background:rgba(255,255,255,.12);color:#fff}
+  nav.nav a.on{background:rgba(255,255,255,.20);color:#fff;box-shadow:inset 0 0 0 1px rgba(255,255,255,.28)}
+  .actions{margin-left:auto;display:flex;align-items:center;gap:10px}
+  .modeseg{display:flex;gap:3px;background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.22);
+    border-radius:10px;padding:3px}
+  .modeseg button{border:none;background:transparent;color:rgba(255,255,255,.82);font-weight:700;
+    font-size:11.5px;padding:5px 11px;border-radius:8px;cursor:pointer;white-space:nowrap}
+  .modeseg button.on{background:rgba(255,255,255,.92);color:#2C524E}
+  .tbtn{width:34px;height:34px;border-radius:10px;background:rgba(255,255,255,.14);
+    border:1px solid rgba(255,255,255,.25);color:#fff;cursor:pointer;display:grid;place-items:center}
+  .tbtn:hover{background:rgba(255,255,255,.24)}
+
+  /* ---------- View switching ---------- */
+  main{flex:1 1 auto;min-height:0;position:relative}
+  .view{display:none;height:100%}
+  .view.active{display:block}
+  #view-resumen,#view-territorio{overflow-y:auto}
+
+  /* ---------- Resumen (dashboard) ---------- */
+  .lead{padding:22px 0 6px}
+  .lead .eyebrow{font-size:11px;letter-spacing:.2em;text-transform:uppercase;color:var(--teal);
+    font-weight:700;margin:0 0 8px}
+  .lead h2{margin:0;font-size:24px;font-weight:800;letter-spacing:-.02em;text-wrap:balance;max-width:34ch}
+  .lead p{margin:8px 0 0;color:var(--muted);max-width:72ch;font-size:14px}
+
+  .kpis{display:grid;grid-template-columns:repeat(5,1fr);gap:14px;margin:20px 0 8px}
+  .kpi{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);
+    padding:16px 16px 15px;box-shadow:var(--shadow);position:relative;overflow:hidden}
+  .kpi .ic{width:34px;height:34px;border-radius:10px;display:grid;place-items:center;margin-bottom:12px}
+  .kpi .lab{font-size:11.5px;color:var(--muted);font-weight:600;letter-spacing:.02em}
+  .kpi .val{font-size:25px;font-weight:800;letter-spacing:-.02em;margin-top:3px;line-height:1.1}
+  .kpi .sub{font-size:11.5px;color:var(--muted);margin-top:4px}
+  .kpi .stripe{position:absolute;left:0;top:0;bottom:0;width:4px}
+
+  .grid2{display:grid;grid-template-columns:1.55fr 1fr;gap:16px;margin-top:8px}
+  .card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);
+    padding:18px 18px 16px;box-shadow:var(--shadow)}
+  .card h3{margin:0;font-size:14px;font-weight:700;letter-spacing:.01em}
+  .card .hint{font-size:12px;color:var(--muted);margin:3px 0 0}
+  .cardhead{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;margin-bottom:12px}
+
+  .maparea{display:flex;gap:14px;flex-wrap:wrap}
+  svg.svgmap{width:100%;height:auto;max-width:520px;flex:1 1 340px;display:block}
+  svg.svgmap path{stroke:var(--surface);stroke-width:.8;cursor:pointer;transition:opacity .12s,filter .12s}
+  svg.svgmap path:hover{filter:brightness(1.06)}
+  svg.svgmap path.on{stroke:var(--ink);stroke-width:1.6}
+  .legend{display:flex;flex-direction:column;gap:9px;min-width:150px;flex:0 0 auto;justify-content:center}
+  .legend .lt{font-size:11px;color:var(--muted);font-weight:700;letter-spacing:.03em;
+    text-transform:uppercase;margin-bottom:2px}
+  .legend .lrow{display:flex;align-items:center;gap:9px;font-size:12.5px}
+  .legend .sw{width:16px;height:16px;border-radius:5px;border:1px solid rgba(0,0,0,.08)}
+
+  .bars{display:flex;flex-direction:column;gap:10px}
+  .bar{display:grid;grid-template-columns:118px 1fr auto;align-items:center;gap:10px;font-size:13px}
+  .bar .nm{color:var(--ink);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .track{background:var(--surface-2);border-radius:8px;height:16px;overflow:hidden}
+  .fill{height:100%;border-radius:8px;min-width:3px}
+  .bar .vv{color:var(--muted);font-weight:700;font-size:12.5px;white-space:nowrap}
+
+  .vbars{display:flex;align-items:flex-end;gap:12px;height:150px;padding-top:8px}
+  .vb{flex:1;display:flex;flex-direction:column;align-items:center;gap:6px;height:100%;justify-content:flex-end}
+  .vb .col{width:100%;border-radius:6px 6px 3px 3px;min-height:3px}
+  .vb .t{font-size:11px;color:var(--muted);font-weight:700}
+  .vb .n{font-size:11px;color:var(--ink);font-weight:700}
+
+  .donutwrap{display:flex;align-items:center;gap:18px;flex-wrap:wrap}
+  .donut{position:relative;width:150px;height:150px;flex:0 0 auto}
+  .donut .ctr{position:absolute;inset:0;display:grid;place-content:center;text-align:center}
+  .donut .ctr b{font-size:22px;font-weight:800;display:block;line-height:1}
+  .donut .ctr small{font-size:10.5px;color:var(--muted);letter-spacing:.04em}
+  .semlist{display:flex;flex-direction:column;gap:10px;flex:1 1 160px}
+  .semrow{display:flex;align-items:center;gap:10px;font-size:13px}
+  .semrow .dt{width:12px;height:12px;border-radius:4px;flex:0 0 auto}
+  .semrow .nm{font-weight:600}
+  .semrow .vv{margin-left:auto;color:var(--muted);font-weight:700;font-size:12.5px}
+  .semrow .ico{width:16px;height:16px;flex:0 0 auto}
+
+  .row2{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:16px}
+  .note{margin-top:16px;background:var(--surface-2);border:1px solid var(--line);
+    border-radius:var(--r-sm);padding:13px 15px;font-size:12.5px;color:var(--muted);display:flex;gap:10px}
+  .note b{color:var(--ink)}
+  footer{margin-top:26px;padding-top:16px;border-top:1px solid var(--line);
+    font-size:12px;color:var(--muted);display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px}
+  .tip{position:fixed;pointer-events:none;z-index:1200;background:var(--ink);color:var(--ground);
+    padding:8px 11px;border-radius:9px;font-size:12px;box-shadow:0 6px 22px rgba(0,0,0,.28);
+    opacity:0;transition:opacity .1s;max-width:230px}
+  .tip b{color:var(--surface)} .tip .k{opacity:.7}
+  .tip.show{opacity:1}
+
+  /* ---------- Mapa (Leaflet) — scoped bajo #view-mapa ---------- */
+  #view-mapa{position:relative}
+  #lmap{position:absolute;inset:0}
+  #view-mapa .leaflet-container{background:var(--ground);font-family:var(--font)}
+  #view-mapa .panel{position:absolute;top:12px;right:12px;z-index:900;width:272px;
+    max-height:calc(100% - 26px);overflow:auto;background:var(--surface);border:1px solid var(--line);
+    border-radius:16px;box-shadow:var(--shadow);padding:14px 14px 12px}
+  #view-mapa .panel h3{margin:0 0 2px;font-size:12.5px;font-weight:800;letter-spacing:.02em}
+  #view-mapa .panel .hint{font-size:11px;color:var(--muted);margin:0 0 10px}
+  #view-mapa .grp{font-size:10.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--teal);
+    font-weight:800;margin:12px 0 6px}
+  #view-mapa .prow{display:flex;align-items:center;gap:9px;padding:4px 0;cursor:pointer;font-size:12.5px}
+  #view-mapa .prow input{accent-color:var(--teal);width:15px;height:15px;cursor:pointer;flex:0 0 auto}
+  #view-mapa .sw{width:15px;height:15px;border-radius:4px;flex:0 0 auto;border:1px solid rgba(0,0,0,.12)}
+  #view-mapa .dot{width:12px;height:12px;border-radius:50%;flex:0 0 auto;border:1px solid rgba(255,255,255,.7)}
+  #view-mapa .prow .lab{flex:1 1 auto}
+  #view-mapa .prow .meta{font-size:10.5px;color:var(--muted);flex:0 0 auto}
+  #view-mapa .seg{display:flex;gap:5px;margin-top:6px}
+  #view-mapa .seg button{flex:1;padding:6px 4px;font-size:11px;font-weight:700;cursor:pointer;
+    border:1px solid var(--line);background:var(--surface-2);color:var(--ink);border-radius:9px}
+  #view-mapa .seg button.on{background:var(--teal);color:#fff;border-color:var(--teal)}
+  #view-mapa .foot{margin-top:12px;padding-top:10px;border-top:1px solid var(--line);
+    font-size:10.5px;color:var(--muted)}
+  #view-mapa .mkpis{position:absolute;left:12px;bottom:14px;z-index:900;display:flex;gap:8px;
+    flex-wrap:wrap;max-width:58%}
+  #view-mapa .mkpi{background:var(--surface);border:1px solid var(--line);border-radius:12px;
+    box-shadow:var(--shadow);padding:8px 12px;min-width:96px}
+  #view-mapa .mkpi .lab{font-size:10px;color:var(--muted);font-weight:700;letter-spacing:.02em}
+  #view-mapa .mkpi .val{font-size:18px;font-weight:800;letter-spacing:-.02em;line-height:1.15}
+  #view-mapa .mkpi .sub{font-size:10px;color:var(--muted)}
+  #view-mapa .mkpi.tl{border-left:4px solid var(--teal)}
+  #view-mapa .mkpi.gd{border-left:4px solid var(--good)}
+  #view-mapa .mkpi.cr{border-left:4px solid var(--crit)}
+  #view-mapa .leaflet-popup-content{font-family:var(--font);font-size:12.5px;line-height:1.45;margin:11px 13px}
+  #view-mapa .leaflet-popup-content b{color:var(--teal)}
+  #view-mapa .pk{color:var(--muted)}
+  #view-mapa .btn-toggle{position:absolute;top:12px;right:12px;z-index:901;display:none;
+    background:var(--teal);color:#fff;border:none;border-radius:10px;padding:8px 12px;
+    font-weight:700;cursor:pointer;box-shadow:var(--shadow)}
+
+  /* ---------- Territorio (tabla técnica + drill-down) ---------- */
+  .crumbs{display:flex;align-items:center;gap:7px;font-size:13px;color:var(--muted);margin:6px 0 14px;flex-wrap:wrap}
+  .crumbs a{color:var(--teal);font-weight:700;cursor:pointer;text-decoration:none}
+  .crumbs a:hover{text-decoration:underline}
+  .crumbs .sep{opacity:.5}
+  .crumbs b{color:var(--ink)}
+  .terrbar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:0 0 14px}
+  .terrbar .sp{margin-left:auto}
+  .btn{background:var(--teal);color:#fff;border:none;border-radius:10px;padding:8px 14px;
+    font-weight:700;font-size:12.5px;cursor:pointer;box-shadow:var(--shadow)}
+  .btn.ghost{background:var(--surface);color:var(--ink);border:1px solid var(--line)}
+  input.search{background:var(--surface);border:1px solid var(--line);border-radius:10px;
+    padding:8px 12px;font-size:13px;color:var(--ink);min-width:200px}
+  table.tt{width:100%;border-collapse:collapse;background:var(--surface);border:1px solid var(--line);
+    border-radius:var(--r);overflow:hidden;font-size:13px;box-shadow:var(--shadow)}
+  table.tt th,table.tt td{padding:10px 13px;text-align:right;border-bottom:1px solid var(--line);white-space:nowrap}
+  table.tt th:first-child,table.tt td:first-child{text-align:left}
+  table.tt thead th{background:var(--surface-2);font-size:11px;font-weight:800;letter-spacing:.02em;
+    color:var(--muted);cursor:pointer;user-select:none;position:sticky;top:0}
+  table.tt thead th.sorted{color:var(--teal)}
+  table.tt tbody tr{cursor:default}
+  table.tt tbody tr.drill{cursor:pointer}
+  table.tt tbody tr:hover{background:color-mix(in srgb,var(--teal) 7%,transparent)}
+  table.tt tbody tr:last-child td{border-bottom:none}
+  .minibar{display:inline-block;height:8px;border-radius:4px;vertical-align:middle;margin-left:8px}
+  .pcell{display:inline-flex;align-items:center;gap:0}
+  .drillico{color:var(--teal);font-weight:700;margin-left:6px;font-size:11px}
+
+  @media (max-width:980px){
+    .kpis{grid-template-columns:repeat(2,1fr)}
+    .grid2,.row2{grid-template-columns:1fr}
+    #view-mapa .panel{width:calc(100% - 24px)} #view-mapa .mkpis{max-width:calc(100% - 24px)}
+    #view-mapa .btn-toggle{display:block}
+  }
+  @media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<header>
+  <div class="hbar">
+    <div class="brand">
+      <div class="logo" aria-hidden="true">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 20h18"/><path d="M6 20V9l6-5 6 5v11"/><path d="M10 20v-5h4v5"/></svg>
+      </div>
+      <div><b>ECOURBA</b><span>ESPACIOS PÚBLICOS</span></div>
+    </div>
+    <nav class="nav" id="nav">
+      <a data-view="resumen">Resumen</a>
+      <a data-view="mapa">Mapa</a>
+      <a data-view="territorio">Territorio</a>
+    </nav>
+    <div class="actions">
+      <div class="modeseg" id="modeseg" title="Modo de alcance: distancia (NOM) o tiempo con pendiente">
+        <button data-modo="distance" class="on">Distancia</button>
+        <button data-modo="time">Tiempo</button>
+      </div>
+      <button class="tbtn" id="themeBtn" title="Cambiar tema claro/oscuro" aria-label="Cambiar tema">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M2 12h2M20 12h2M5 5l1.5 1.5M17.5 17.5 19 19M19 5l-1.5 1.5M6.5 17.5 5 19"/></svg>
+      </button>
+    </div>
+  </div>
+</header>
+
+<main>
+  <!-- ============ RESUMEN ============ -->
+  <section id="view-resumen" class="view">
+    <div class="wrap">
+      <section class="lead">
+        <p class="eyebrow">Diagnóstico de accesibilidad — capítulo 9</p>
+        <h2>¿Cuánta población tiene acceso a un espacio público por la red vial?</h2>
+        <p id="res-lead">Áreas de servicio por recorrido peatonal (isócronas <b>Valhalla</b>) sobre el
+          inventario depurado de la CDMX. Cambia el <b>modo</b> arriba: <b>distancia</b> (isodistancia NOM)
+          o <b>tiempo</b> (costing peatonal con pendiente). Fuente única para todas las vistas.</p>
+      </section>
+      <div class="terrbar" style="margin-bottom:16px">
+        <div class="modeseg" id="seg-scope-res" title="Ámbito territorial">
+          <button data-rscope="cdmx" class="on">CDMX · detallado</button>
+          <button data-rscope="nac">Nacional · SCINCE</button>
+        </div>
+      </div>
+      <section class="kpis" id="kpis"></section>
+      <section class="grid2">
+        <div class="card">
+          <div class="cardhead"><div><h3 id="res-choro-title">Población sin cobertura por alcaldía</h3>
+            <p class="hint" id="res-choro-hint">% de habitantes sin ningún espacio público al alcance</p></div></div>
+          <div class="maparea">
+            <svg class="svgmap" id="map" role="img" aria-label="Mapa de alcaldías por porcentaje sin cobertura"></svg>
+            <div class="legend" id="legend"><div class="lt">% sin cobertura</div></div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="cardhead"><div><h3>Semáforo 9.2.3</h3>
+            <p class="hint">Población por nivel de cumplimiento del ideal de cobertura</p></div></div>
+          <div class="donutwrap">
+            <div class="donut"><svg id="donut" width="150" height="150" viewBox="0 0 42 42"></svg>
+              <div class="ctr"><b id="donutTot"></b><small>habitantes</small></div></div>
+            <div class="semlist" id="semlist"></div>
+          </div>
+        </div>
+      </section>
+      <section class="row2">
+        <div class="card">
+          <div class="cardhead"><div><h3 id="res-rank-title">Alcaldías con mayor rezago</h3>
+            <p class="hint">Ordenadas por % de población sin cobertura</p></div></div>
+          <div class="bars" id="topAlc"></div>
+        </div>
+        <div class="card">
+          <div class="cardhead"><div><h3>Población con acceso, por escala del espacio</h3>
+            <p class="hint">A-1 (barrio, 500 m) → E-5 (metropolitano, 12 km)</p></div></div>
+          <div class="vbars" id="escala"></div>
+          <div class="cardhead" id="banda-head" style="margin:20px 0 10px"><div><h3>Población sin cobertura, por déficit de red</h3>
+            <p class="hint">Distancia de red que falta al espacio más cercano (Dijkstra)</p></div></div>
+          <div class="bars" id="banda"></div>
+        </div>
+      </section>
+      <div class="note">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" style="flex:0 0 auto;margin-top:1px"><circle cx="12" cy="12" r="9"/><path d="M12 8h.01M11 12h1v4h1"/></svg>
+        <div><b>Lectura:</b> el alto porcentaje con acceso lo domina la escala <b>E-5 (12 km)</b>,
+          distancia normativa de los grandes parques pero no de proximidad cotidiana. Para el acceso
+          diario, la referencia es <b>A-1/B-2</b>. El modo <b>tiempo</b> penaliza las subidas: la
+          cobertura encoge en las laderas (Ajusco, Cuajimalpa, Contreras). Bandas de déficit = distancia
+          de red (Dijkstra). Accesos aproximados por centroide (preliminar, a sustituir en campo).</div>
+      </div>
+      <footer>
+        <span>Fuentes: SEDEMA (áreas verdes 2017) · OpenStreetMap · Censo 2020 / SCINCE (INEGI) · Valhalla + SRTM</span>
+        <span>ECOURBA · Plataforma de espacios públicos — piloto</span>
+      </footer>
+    </div>
+  </section>
+
+  <!-- ============ MAPA ============ -->
+  <section id="view-mapa" class="view">
+    <div id="lmap"></div>
+    <aside class="panel" id="panel">
+      <h3>Capas de validación</h3>
+      <p class="hint">Acércate a cualquier colonia y verifica que las áreas de servicio siguen la red
+        vial y nacen de cada espacio.</p>
+      <div class="grp">Ámbito</div>
+      <div class="seg" id="seg-scope-mapa">
+        <button data-mscope="cdmx" class="on">CDMX · detallado</button>
+        <button data-mscope="nac">Nacional · SCINCE</button>
+      </div>
+      <div class="grp">Mapa base</div>
+      <div class="seg" id="seg-base">
+        <button data-base="calles" class="on">Calles</button>
+        <button data-base="claro">Claro</button>
+        <button data-base="satelite">Satélite</button>
+      </div>
+      <div class="grp">Modo de alcance</div>
+      <div class="seg" id="seg-modo">
+        <button data-modo="distance" class="on">Distancia · NOM</button>
+        <button data-modo="time">Tiempo · pendiente</button>
+      </div>
+      <div class="grp">Cobertura por escala (NOM 4.4.3.6)</div>
+      <div id="cov-rows"></div>
+      <div class="grp">Espacios públicos (fuente)</div>
+      <div class="prow" data-layer="espacios">
+        <input type="checkbox" checked>
+        <span class="dot" style="background:#35615D"></span>
+        <span class="lab">Puntos por tipología (NOM)</span>
+        <span class="meta" id="n-esp"></span>
+      </div>
+      <div id="fun-legend" style="display:flex;flex-wrap:wrap;gap:6px 14px;padding:4px 2px 6px 26px"></div>
+      <div class="grp">Cargar espacios (KML / GeoJSON)</div>
+      <div style="padding:2px 2px 4px">
+        <input type="file" id="up-file" accept=".geojson,.json,.kml,.kmz" style="font-size:12px;width:100%;color:var(--muted)">
+        <div style="display:flex;gap:8px;align-items:center;margin-top:8px">
+          <label style="font-size:12px;color:var(--muted);white-space:nowrap">Tipología:</label>
+          <select id="up-fun" style="flex:1;font-size:12px;padding:3px;background:var(--surface-2);color:var(--ink);border:1px solid var(--line);border-radius:6px"></select>
+        </div>
+        <div id="up-status" style="margin-top:8px;font-size:11px;color:var(--muted);line-height:1.5"></div>
+        <button class="btn ghost" id="up-clear" style="margin-top:8px;display:none;font-size:12px">Quitar preview</button>
+      </div>
+      <div class="grp" id="grp-sin">Sin cobertura · el negativo (9.2)</div>
+      <div id="sin-rows"></div>
+      <div class="foot" id="foot"></div>
+    </aside>
+    <button class="btn-toggle" id="btnToggle">Capas ▾</button>
+    <div class="mkpis" id="mkpis"></div>
+  </section>
+
+  <!-- ============ TERRITORIO ============ -->
+  <section id="view-territorio" class="view">
+    <div class="wrap">
+      <section class="lead">
+        <p class="eyebrow">Drill-down territorial</p>
+        <h2>Indicadores por unidad territorial</h2>
+        <p>Elige el <b>ámbito</b>: <b>CDMX</b> (inventario detallado SEDEMA, drill alcaldía → AGEB) o
+          <b>Nacional</b> (32 estados, inventario semilla SCINCE <i>servicios_a</i>, drill estado →
+          municipio → AGEB). Ordena por cualquier columna; exporta el nivel actual a CSV.</p>
+      </section>
+      <div class="terrbar" style="margin-bottom:12px">
+        <div class="modeseg" id="scopeseg" title="Ámbito territorial">
+          <button data-scope="cdmx" class="on">CDMX · detallado</button>
+          <button data-scope="nac">Nacional · SCINCE</button>
+        </div>
+        <div class="sp"></div>
+        <span class="note" id="scopenote" style="font-size:12px;opacity:.75"></span>
+      </div>
+      <div class="crumbs" id="crumbs"></div>
+      <div class="terrbar">
+        <input class="search" id="terr-search" placeholder="Filtrar…" autocomplete="off">
+        <div class="sp"></div>
+        <button class="btn ghost" id="terr-export">Exportar CSV</button>
+      </div>
+      <div class="card" style="padding:0;overflow:auto">
+        <table class="tt" id="terr-table"><thead></thead><tbody></tbody></table>
+      </div>
+      <div class="note" style="margin-top:14px">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" style="flex:0 0 auto;margin-top:1px"><circle cx="12" cy="12" r="9"/><path d="M12 8h.01M11 12h1v4h1"/></svg>
+        <div><b>Próximamente:</b> nombres de municipio (Marco Geoestadístico), coroplético nacional por
+          estado/municipio en Resumen/Mapa, nivel localidad y cruce con marginación (CONAPO) para
+          priorización con enfoque de equidad. El ámbito Nacional usa el inventario semilla SCINCE
+          <i>servicios_a</i> (parcial): los % son un piso condicionado a completar el inventario.</div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<div class="tip" id="tip"></div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+  integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+<script src="dashboard_datos.js"></script>
+<script src="mapa_datos.js?v=34"></script>
+<script src="mapa_nacional_datos.js?v=38"></script>
+<script src="nacional_datos.js?v=35"></script>
+<script>
+(function(){
+  var DASH = window.DASH, ESP = window.ESPPUB;
+  var fmt = function(n){ return Math.round(n||0).toLocaleString('es-MX'); };
+  var css = function(v){ return getComputedStyle(document.documentElement).getPropertyValue(v).trim(); };
+  var MODE_LAB = {distance:'distancia · NOM', time:'tiempo · pendiente'};
+  var platMode = (DASH && DASH.modo_default) || 'distance';
+
+  /* =========================================================
+     ROUTER
+     ========================================================= */
+  var HCTX = {resumen:'Resumen', mapa:'Mapa', territorio:'Territorio'};
+  var mapReady = false;
+  function showView(v){
+    if(!HCTX[v]) v='resumen';
+    ['resumen','mapa','territorio'].forEach(function(x){
+      var el=document.getElementById('view-'+x); if(el) el.classList.toggle('active', x===v); });
+    [].forEach.call(document.querySelectorAll('nav.nav a'), function(a){
+      a.classList.toggle('on', a.getAttribute('data-view')===v); });
+    if(v==='mapa'){ initMap(); if(window._lmap) setTimeout(function(){ window._lmap.invalidateSize(); }, 60); }
+    if(location.hash.slice(1)!==v) history.replaceState(null,'','#'+v);
+  }
+  document.getElementById('nav').addEventListener('click', function(e){
+    var a=e.target.closest('a[data-view]'); if(!a) return; e.preventDefault(); showView(a.getAttribute('data-view')); });
+  window.addEventListener('hashchange', function(){ showView(location.hash.slice(1)||'resumen'); });
+
+  /* =========================================================
+     TEMA + MODO (global)
+     ========================================================= */
+  (function(){
+    var saved=null; try{ saved=localStorage.getItem('esppub-theme'); }catch(e){}
+    if(saved) document.documentElement.setAttribute('data-theme', saved);
+    document.getElementById('themeBtn').addEventListener('click', function(){
+      var cur=document.documentElement.getAttribute('data-theme');
+      if(!cur) cur=matchMedia('(prefers-color-scheme:dark)').matches?'dark':'light';
+      var next=cur==='dark'?'light':'dark';
+      document.documentElement.setAttribute('data-theme', next);
+      try{ localStorage.setItem('esppub-theme', next); }catch(e){}
+      renderResumen(platMode);  // recolorear coroplético con las vars del nuevo tema
+    });
+  })();
+
+  function setPlatMode(m){
+    if(m!=='distance' && m!=='time') return;
+    platMode=m;
+    [].forEach.call(document.getElementById('modeseg').children, function(x){
+      x.classList.toggle('on', x.getAttribute('data-modo')===m); });
+    renderResumen(m); renderTerritorio(m);
+    if(window._mapSetMode) window._mapSetMode(m);
+  }
+  document.getElementById('modeseg').addEventListener('click', function(e){
+    var m=e.target.getAttribute('data-modo'); if(m) setPlatMode(m); });
+  document.getElementById('seg-scope-res').addEventListener('click', function(e){
+    var b=e.target.closest('button[data-rscope]'); if(!b) return;
+    var sc=b.getAttribute('data-rscope'); if(sc===resScope) return;
+    if(sc==='nac' && !window.NAC) return;
+    resScope=sc;
+    [].forEach.call(this.querySelectorAll('button'), function(x){ x.classList.toggle('on', x===b); });
+    renderResumen(platMode); });
+
+  /* =========================================================
+     RESUMEN (dashboard) — mode-aware
+     ========================================================= */
+  var tip=document.getElementById('tip');
+  function showTip(html,x,y){ tip.innerHTML=html; tip.classList.add('show');
+    tip.style.left=Math.min(x+14,innerWidth-240)+'px'; tip.style.top=(y+14)+'px'; }
+  function hideTip(){ tip.classList.remove('show'); }
+  function rampColor(p, seq){ var b=[5,15,30,50],i=0; while(i<b.length&&p>=b[i])i++; return seq[i]; }
+
+  var resScope='cdmx';
+  // --- helpers compartidos Resumen ---
+  function kpiCardsHTML(kpis){ return kpis.map(function(c){ return ''+
+    '<div class="kpi"><div class="stripe" style="background:'+c.col+'"></div>'+
+    '<div class="ic" style="background:color-mix(in srgb,'+c.col+' 16%,transparent)">'+
+    '<svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="'+c.col+'" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">'+c.ic+'</svg></div>'+
+    '<div class="lab">'+c.lab+'</div><div class="val">'+c.val+'</div><div class="sub">'+c.sub+'</div></div>'; }).join(''); }
+  function legendHTML(seq){ var rows=[['< 5 %',seq[0]],['5 – 15 %',seq[1]],['15 – 30 %',seq[2]],['30 – 50 %',seq[3]],['≥ 50 %',seq[4]]];
+    return '<div class="lt">% sin cobertura</div>'+rows.map(function(r){ return '<div class="lrow"><span class="sw" style="background:'+r[1]+'"></span>'+r[0]+'</div>'; }).join(''); }
+  function drawChoropleth(mapEl, feats, colorOf, tipOf){
+    var mnx=180,mny=90,mxx=-180,mxy=-90;
+    function eachRing(geom,fn){ var cs=geom.coordinates;
+      if(geom.type==='Polygon')cs.forEach(fn); else cs.forEach(function(poly){poly.forEach(fn);}); }
+    feats.forEach(function(a){ if(!a.geometry) return; eachRing(a.geometry,function(ring){ ring.forEach(function(p){
+      var x=p[0],y=p[1]; if(x<mnx)mnx=x; if(x>mxx)mxx=x; if(y<mny)mny=y; if(y>mxy)mxy=y; }); }); });
+    var midLat=(mny+mxy)/2, kx=Math.cos(midLat*Math.PI/180);
+    var dw=(mxx-mnx)*kx, dh=(mxy-mny), PAD=12, VW=520, VH=Math.round((VW-2*PAD)*dh/dw+2*PAD);
+    function pxf(x){ return PAD+((x-mnx)*kx)/dw*(VW-2*PAD); }
+    function pyf(y){ return PAD+((mxy-y))/dh*(VH-2*PAD); }
+    function ringD(ring){ return ring.map(function(p,i){ return (i?'L':'M')+pxf(p[0]).toFixed(1)+' '+pyf(p[1]).toFixed(1); }).join(' ')+'Z'; }
+    function pathD(geom){ var d=''; eachRing(geom,function(r){ d+=ringD(r); }); return d; }
+    mapEl.setAttribute('viewBox','0 0 '+VW+' '+VH);
+    mapEl.innerHTML=feats.map(function(a,i){ if(!a.geometry) return '';
+      return '<path d="'+pathD(a.geometry)+'" fill="'+colorOf(a)+'" data-i="'+i+'"><title>'+(a.nombre||'')+'</title></path>'; }).join('');
+    [].forEach.call(mapEl.querySelectorAll('path'), function(p){
+      p.addEventListener('mousemove', function(e){ showTip(tipOf(feats[+p.dataset.i]), e.clientX, e.clientY);
+        [].forEach.call(mapEl.querySelectorAll('path'), function(q){ q.classList.remove('on'); }); p.classList.add('on'); });
+      p.addEventListener('mouseleave', function(){ hideTip(); p.classList.remove('on'); });
+    });
+  }
+  function renderSemaforo(verde,amarillo,rojo){
+    var semColors={verde:'var(--good)',amarillo:'var(--warn)',rojo:'var(--crit)'};
+    var semLabel={verde:'Cumple el ideal',amarillo:'Cubierta, parcial',rojo:'Sin cobertura'};
+    var semIco={verde:'M20 6 9 17l-5-5',amarillo:'M12 8v5M12 16h.01',rojo:'M18 6 6 18M6 6l12 12'};
+    var sm={verde:verde,amarillo:amarillo,rojo:rojo}, smTot=verde+amarillo+rojo||1;
+    document.getElementById('donutTot').textContent=(smTot/1e6).toFixed(1)+' M';
+    var off=25, arcs='';
+    ['verde','amarillo','rojo'].forEach(function(kk){ var pc=100*sm[kk]/smTot;
+      arcs+='<circle cx="21" cy="21" r="15.915" fill="none" stroke="'+semColors[kk]+'" stroke-width="6" stroke-dasharray="'+pc.toFixed(2)+' '+(100-pc).toFixed(2)+'" stroke-dashoffset="'+off.toFixed(2)+'" transform="rotate(-90 21 21)"></circle>'; off-=pc; });
+    document.getElementById('donut').innerHTML='<circle cx="21" cy="21" r="15.915" fill="none" stroke="var(--surface-2)" stroke-width="6"></circle>'+arcs;
+    document.getElementById('semlist').innerHTML=['rojo','amarillo','verde'].map(function(kk){
+      return '<div class="semrow"><span class="dt" style="background:'+semColors[kk]+'"></span>'+
+        '<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="'+semColors[kk]+'" stroke-width="2.4" stroke-linecap="round"><path d="'+semIco[kk]+'"/></svg>'+
+        '<span class="nm">'+semLabel[kk]+'</span><span class="vv">'+fmt(sm[kk])+' · '+(100*sm[kk]/smTot).toFixed(1)+'%</span></div>'; }).join('');
+  }
+  function renderEscala(es){ var esOrder=['a1','b2','c3','d4','e5'];
+    var esMax=Math.max.apply(null, esOrder.map(function(o){ return es[o]||0; }))||1;
+    var tealSeq=['#35615D','#7B8C4E','#D89756','#A7805F','#C7B850'];
+    document.getElementById('escala').innerHTML=esOrder.map(function(o,i){ var v=es[o]||0;
+      return '<div class="vb"><span class="n">'+(v/1e6).toFixed(1)+'M</span>'+
+        '<span class="col" style="height:'+(100*v/esMax).toFixed(1)+'%;background:'+tealSeq[i]+'" data-tip="Escala '+o.toUpperCase()+'|'+fmt(v)+' hab con acceso"></span>'+
+        '<span class="t">'+o.toUpperCase()+'</span></div>'; }).join('');
+  }
+
+  function renderResumenNac(){
+    if(!window.NAC) return;
+    var seq=['--seq0','--seq1','--seq2','--seq3','--seq4'].map(css);
+    var N=window.NAC, nac=N.nacional, pob=nac.pob;
+    var po=function(x){ return pob? +(100*x/pob).toFixed(1):0; };
+    var pctState=function(e){ return e.pob? 100*e.sin/e.pob : 0; };
+    // textos / títulos
+    document.getElementById('res-lead').innerHTML='Áreas de servicio por recorrido peatonal (isócronas <b>Valhalla</b>, modo distancia) sobre el inventario semilla <b>SCINCE servicios_a</b> de las 32 entidades. Los % son un <b>piso</b> condicionado a completar el inventario. El modo tiempo no aplica a nivel nacional.';
+    document.getElementById('res-choro-title').textContent='Población sin acceso por estado';
+    document.getElementById('res-choro-hint').textContent='% de habitantes sin ningún espacio público al alcance (SCINCE)';
+    document.getElementById('res-rank-title').textContent='Estados con mayor rezago';
+    document.getElementById('banda-head').style.display='none';
+    document.getElementById('banda').style.display='none';
+    // KPIs
+    document.getElementById('kpis').innerHTML=kpiCardsHTML([
+      {lab:'Población total', val:fmt(pob), sub:'32 estados · SCINCE', col:'var(--teal)', ic:'<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/>'},
+      {lab:'Con acceso', val:po(nac.con)+'%', sub:fmt(nac.con)+' hab', col:'var(--good)', ic:'<path d="M20 6 9 17l-5-5"/>'},
+      {lab:'Sin acceso', val:fmt(nac.sin), sub:po(nac.sin)+'% de la población', col:'var(--crit)', ic:'<circle cx="12" cy="12" r="9"/><path d="M12 8v4M12 16h.01"/>'},
+      {lab:'Con área verde', val:po(nac.verde)+'%', sub:fmt(nac.verde)+' hab', col:'var(--warn)', ic:'<path d="M12 22V12M12 12C12 7 8 3 3 3c0 5 4 9 9 9zM12 12c0-4 4-8 9-8 0 4-4 8-9 8z"/>'},
+      {lab:'Espacios públicos', val:'19,214', sub:'SCINCE servicios_a · 32 edos', col:'var(--brown)', ic:'<path d="M3 21h18M5 21V7l7-4 7 4v14M9 21v-6h6v6"/>'},
+    ]);
+    document.getElementById('legend').innerHTML=legendHTML(seq);
+    // coroplético de estados
+    drawChoropleth(document.getElementById('map'), N.estados,
+      function(e){ return rampColor(pctState(e), seq); },
+      function(e){ return '<b>'+e.nombre+'</b><br><span class="k">Sin acceso:</span> '+pctState(e).toFixed(1)+'% ('+fmt(e.sin)+')<br><span class="k">Población:</span> '+fmt(e.pob)+'<br><span class="k">Con área verde:</span> '+po(e.verde)+'%'; });
+    // semáforo aproximado: rojo=sin acceso, verde=ideal 9.2.3, amarillo=con acceso - ideal
+    renderSemaforo(nac.ideal, Math.max(0,nac.con-nac.ideal), nac.sin);
+    // ranking estados
+    var top=N.estados.slice().sort(function(a,b){ return pctState(b)-pctState(a); }).slice(0,8);
+    var maxPct=pctState(top[0])||1;
+    document.getElementById('topAlc').innerHTML=top.map(function(e){ var pc=pctState(e);
+      return '<div class="bar"><span class="nm" title="'+e.nombre+'">'+e.nombre+'</span>'+
+        '<span class="track"><span class="fill" style="width:'+(100*pc/maxPct).toFixed(1)+'%;background:'+rampColor(pc,seq)+'" data-tip="'+e.nombre+'|'+pc.toFixed(1)+'% · '+fmt(e.sin)+' hab"></span></span>'+
+        '<span class="vv">'+pc.toFixed(1)+'%</span></div>'; }).join('');
+    // escala (población con acceso por escala)
+    renderEscala({a1:nac.a1,b2:nac.b2,c3:nac.c3,d4:nac.d4,e5:nac.e5||0});
+  }
+
+  function renderResumen(mode){
+    if(!DASH) return;
+    if(resScope==='nac') return renderResumenNac();
+    document.getElementById('res-choro-title').textContent='Población sin cobertura por alcaldía';
+    document.getElementById('res-choro-hint').textContent='% de habitantes sin ningún espacio público al alcance';
+    document.getElementById('res-rank-title').textContent='Alcaldías con mayor rezago';
+    document.getElementById('banda-head').style.display='';
+    document.getElementById('banda').style.display='';
+    var seq=['--seq0','--seq1','--seq2','--seq3','--seq4'].map(css);
+    var k=DASH.kpi[mode], ko=DASH.kpi[mode==='distance'?'time':'distance'];
+    var kpis=[
+      {lab:'Población total', val:fmt(k.pob_total), sub:'CDMX · 16 alcaldías', col:'var(--teal)',
+       ic:'<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/>'},
+      {lab:'Con acceso', val:k.pct_cubierta+'%', sub:fmt(k.pob_cubierta)+' hab · otro modo '+ko.pct_cubierta+'%', col:'var(--good)',
+       ic:'<path d="M20 6 9 17l-5-5"/>'},
+      {lab:'Sin cobertura', val:fmt(k.pob_sin_cobertura), sub:k.pct_sin+'% de la población', col:'var(--crit)',
+       ic:'<circle cx="12" cy="12" r="9"/><path d="M12 8v4M12 16h.01"/>'},
+      {lab:'Sin área verde', val:fmt(k.pob_sin_area_verde), sub:'incumple 9.2.3.iii', col:'var(--warn)',
+       ic:'<path d="M12 22V12M12 12C12 7 8 3 3 3c0 5 4 9 9 9zM12 12c0-4 4-8 9-8 0 4-4 8-9 8z"/>'},
+      {lab:'Espacios públicos', val:fmt(k.n_espacios), sub:'parques · jardines · plazas · dep.', col:'var(--brown)',
+       ic:'<path d="M3 21h18M5 21V7l7-4 7 4v14M9 21v-6h6v6"/>'},
+    ];
+    document.getElementById('kpis').innerHTML=kpis.map(function(c){ return ''+
+      '<div class="kpi"><div class="stripe" style="background:'+c.col+'"></div>'+
+      '<div class="ic" style="background:color-mix(in srgb,'+c.col+' 16%,transparent)">'+
+      '<svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="'+c.col+'" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">'+c.ic+'</svg></div>'+
+      '<div class="lab">'+c.lab+'</div><div class="val">'+c.val+'</div><div class="sub">'+c.sub+'</div></div>'; }).join('');
+
+    // leyenda
+    var legendRows=[['< 5 %',seq[0]],['5 – 15 %',seq[1]],['15 – 30 %',seq[2]],['30 – 50 %',seq[3]],['≥ 50 %',seq[4]]];
+    document.getElementById('legend').innerHTML='<div class="lt">% sin cobertura</div>'+legendRows.map(function(r){
+      return '<div class="lrow"><span class="sw" style="background:'+r[1]+'"></span>'+r[0]+'</div>'; }).join('');
+
+    // coroplético (alcaldías)
+    var alc=DASH.alcaldias;
+    drawChoropleth(document.getElementById('map'), alc,
+      function(a){ return rampColor(a[mode].pct_sin_cob, seq); },
+      function(a){ var m=a[mode]; return '<b>'+a.nombre+'</b><br><span class="k">Sin cobertura ('+MODE_LAB[mode]+'):</span> '+m.pct_sin_cob+'% ('+fmt(m.pob_sin_cob)+')<br><span class="k">Población:</span> '+fmt(a.pob_total)+'<br><span class="k">Espacios:</span> '+a.n_espacios; });
+
+    // semáforo
+    var semColors={verde:'var(--good)',amarillo:'var(--warn)',rojo:'var(--crit)'};
+    var semLabel={verde:'Cumple el ideal',amarillo:'Cubierta, parcial',rojo:'Sin cobertura'};
+    var semIco={verde:'M20 6 9 17l-5-5',amarillo:'M12 8v5M12 16h.01',rojo:'M18 6 6 18M6 6l12 12'};
+    var sm=DASH.por_semaforo[mode], smTot=sm.verde+sm.amarillo+sm.rojo;
+    document.getElementById('donutTot').textContent=(smTot/1e6).toFixed(1)+' M';
+    var off=25, arcs='';
+    ['verde','amarillo','rojo'].forEach(function(kk){ var pc=100*sm[kk]/smTot;
+      arcs+='<circle cx="21" cy="21" r="15.915" fill="none" stroke="'+semColors[kk]+'" stroke-width="6" stroke-dasharray="'+pc.toFixed(2)+' '+(100-pc).toFixed(2)+'" stroke-dashoffset="'+off.toFixed(2)+'" transform="rotate(-90 21 21)"></circle>'; off-=pc; });
+    document.getElementById('donut').innerHTML='<circle cx="21" cy="21" r="15.915" fill="none" stroke="var(--surface-2)" stroke-width="6"></circle>'+arcs;
+    document.getElementById('semlist').innerHTML=['rojo','amarillo','verde'].map(function(kk){
+      return '<div class="semrow"><span class="dt" style="background:'+semColors[kk]+'"></span>'+
+        '<svg class="ico" viewBox="0 0 24 24" fill="none" stroke="'+semColors[kk]+'" stroke-width="2.4" stroke-linecap="round"><path d="'+semIco[kk]+'"/></svg>'+
+        '<span class="nm">'+semLabel[kk]+'</span><span class="vv">'+fmt(sm[kk])+' · '+(100*sm[kk]/smTot).toFixed(1)+'%</span></div>'; }).join('');
+
+    // top alcaldías
+    var top=alc.slice().sort(function(a,b){ return b[mode].pct_sin_cob-a[mode].pct_sin_cob; }).slice(0,8);
+    var maxPct=top[0][mode].pct_sin_cob||1;
+    document.getElementById('topAlc').innerHTML=top.map(function(a){ var m=a[mode];
+      return '<div class="bar"><span class="nm" title="'+a.nombre+'">'+a.nombre+'</span>'+
+        '<span class="track"><span class="fill" style="width:'+(100*m.pct_sin_cob/maxPct).toFixed(1)+'%;background:'+rampColor(m.pct_sin_cob,seq)+'" data-tip="'+a.nombre+'|'+m.pct_sin_cob+'% · '+fmt(m.pob_sin_cob)+' hab"></span></span>'+
+        '<span class="vv">'+m.pct_sin_cob+'%</span></div>'; }).join('');
+
+    // escala
+    var es=DASH.por_escala[mode], esOrder=['a1','b2','c3','d4','e5'];
+    var esMax=Math.max.apply(null, esOrder.map(function(o){ return es[o]; }))||1;
+    var tealSeq=['#35615D','#7B8C4E','#D89756','#A7805F','#C7B850'];
+    document.getElementById('escala').innerHTML=esOrder.map(function(o,i){
+      return '<div class="vb"><span class="n">'+(es[o]/1e6).toFixed(1)+'M</span>'+
+        '<span class="col" style="height:'+(100*es[o]/esMax).toFixed(1)+'%;background:'+tealSeq[i]+'" data-tip="Escala '+o.toUpperCase()+'|'+fmt(es[o])+' hab con acceso"></span>'+
+        '<span class="t">'+o.toUpperCase()+'</span></div>'; }).join('');
+
+    // banda (Dijkstra, estática)
+    var bd=DASH.por_banda, bdOrder=[['casi','“Casi” (excede < 200 m)'],['deficit_medio','Déficit medio (200–500 m)'],['desierto','Desierto (> 500 m)']];
+    var bdCol={casi:seq[1],deficit_medio:seq[2],desierto:seq[3]};
+    var bdMax=Math.max(bd.casi,bd.deficit_medio,bd.desierto)||1;
+    document.getElementById('banda').innerHTML=bdOrder.map(function(o){ var kk=o[0],lab=o[1];
+      return '<div class="bar"><span class="nm" style="font-weight:500">'+lab+'</span>'+
+        '<span class="track"><span class="fill" style="width:'+(100*bd[kk]/bdMax).toFixed(1)+'%;background:'+bdCol[kk]+'" data-tip="'+lab+'|'+fmt(bd[kk])+' hab"></span></span>'+
+        '<span class="vv">'+fmt(bd[kk])+'</span></div>'; }).join('');
+
+    [].forEach.call(document.querySelectorAll('[data-tip]'), function(el){ el.style.cursor='default';
+      el.addEventListener('mousemove', function(e){ var pr=el.dataset.tip.split('|'); showTip('<b>'+pr[0]+'</b><br>'+pr[1], e.clientX, e.clientY); });
+      el.addEventListener('mouseleave', hideTip); });
+  }
+
+  /* =========================================================
+     TERRITORIO — drill-down alcaldía -> AGEB, mode-aware
+     ========================================================= */
+  /* Dos ámbitos: CDMX (SEDEMA, mun→ageb, mode-aware) y Nacional (SCINCE, est→mun→ageb) */
+  var terrScope='cdmx';
+  var terrLevel='mun', terrMun=null;          // navegación CDMX
+  var nLevel='est', nEnt=null, nMun=null;      // navegación Nacional
+  var terrSortK='pct_sin_cob', terrSortDir=-1, terrFilter='';
+  var MUN_NOM={};
+  if(DASH) DASH.alcaldias.forEach(function(a){ MUN_NOM[a.mun]=a.nombre; });
+  var NAC = window.NAC, NAC_ENT_NOM={}, NAC_MUN_NOM=(NAC&&NAC.mun_nombre)||{};
+  if(NAC) NAC.estados.forEach(function(e){ NAC_ENT_NOM[e.cve]=e.nombre; });
+  function munLabel(cve){ return NAC_MUN_NOM[cve] || ('Mun '+cve); }
+  function pctOf(part,tot){ return tot? +(100*part/tot).toFixed(1) : 0; }
+
+  function terrCols(){
+    if(terrScope==='nac') return terrColsNac();
+    var base=[{k:'nombre',t: terrLevel==='mun'?'Alcaldía':'AGEB',num:false}];
+    base.push({k:'pob_total',t:'Población',num:true});
+    base.push({k:'pct_sin_cob',t:'Sin cobertura %',num:true,bar:true,mode:true});
+    base.push({k:'pob_sin_cob',t:'Sin cobertura (hab)',num:true,mode:true});
+    base.push({k:'pob_sin_verde',t:'Sin área verde',num:true,mode:true});
+    base.push({k:'pob_desierto',t:'Desierto',num:true});
+    if(terrLevel==='mun') base.push({k:'n_espacios',t:'Espacios',num:true});
+    return base;
+  }
+  function terrColsNac(){
+    var lvl = nLevel==='est'?'Estado':(nLevel==='mun'?'Municipio':'AGEB (CVE)');
+    return [{k:'nombre',t:lvl,num:false},
+      {k:'pob_total',t:'Población',num:true},
+      {k:'pct_sin_cob',t:'Sin acceso %',num:true,bar:true},
+      {k:'pob_sin_cob',t:'Sin acceso (hab)',num:true},
+      {k:'pct_verde',t:'Con área verde %',num:true,pct:true},
+      {k:'pct_prox',t:'Con proximidad %',num:true,pct:true}];
+  }
+  function terrRows(mode){
+    if(terrScope==='nac') return terrRowsNac();
+    if(terrLevel==='mun'){
+      return DASH.alcaldias.map(function(a){ return {
+        _id:a.mun, nombre:a.nombre, pob_total:a.pob_total, pob_desierto:a.pob_desierto,
+        n_espacios:a.n_espacios, pct_sin_cob:a[mode].pct_sin_cob, pob_sin_cob:a[mode].pob_sin_cob,
+        pob_sin_verde:a[mode].pob_sin_verde, drill:true }; });
+    }
+    return DASH.agebs.filter(function(g){ return g.mun===terrMun; }).map(function(g){ return {
+      _id:g.cve, nombre:'AGEB '+g.cve.slice(9), pob_total:g.pob_total, pob_desierto:g.pob_desierto,
+      pct_sin_cob:g[mode].pct_sin_cob, pob_sin_cob:g[mode].pob_sin_cob, pob_sin_verde:g[mode].pob_sin_verde,
+      drill:false }; });
+  }
+  function nrow(id,nombre,pob,sin,verde,prox,drill){
+    return {_id:id, nombre:nombre, pob_total:pob, pob_sin_cob:sin, pct_sin_cob:pctOf(sin,pob),
+      pct_verde:pctOf(verde,pob), pct_prox:(prox==null?null:pctOf(prox,pob)), drill:drill}; }
+  function terrRowsNac(){
+    var out=[], k, a;
+    if(nLevel==='est'){
+      return NAC.estados.map(function(e){ return nrow(e.cve, e.nombre, e.pob, e.sin, e.verde, e.prox, true); }); }
+    if(nLevel==='mun'){
+      for(k in NAC.municipios){ if(k.slice(0,2)===nEnt){ a=NAC.municipios[k]; out.push(nrow(k, munLabel(k), a[0],a[1],a[2],a[3], true)); } }
+      return out; }
+    for(k in NAC.agebs){ if(k.slice(0,5)===nMun){ a=NAC.agebs[k]; out.push(nrow(k,'AGEB '+k, a[0],a[1],a[2], null, false)); } }
+    return out;
+  }
+  function terrCrumb(){
+    var cr=document.getElementById('crumbs');
+    if(terrScope==='cdmx'){
+      if(terrLevel==='mun'){ cr.innerHTML='<b>CDMX</b> <span class="sep">›</span> <span>16 alcaldías</span>'; }
+      else { cr.innerHTML='<a data-root="1">CDMX</a> <span class="sep">›</span> <b>'+(MUN_NOM[terrMun]||terrMun)+'</b> <span class="sep">›</span> <span>AGEBs</span>'; }
+      return;
+    }
+    if(nLevel==='est'){ cr.innerHTML='<b>Nacional</b> <span class="sep">›</span> <span>32 estados</span>'; }
+    else if(nLevel==='mun'){ cr.innerHTML='<a data-root="1">Nacional</a> <span class="sep">›</span> <b>'+(NAC_ENT_NOM[nEnt]||nEnt)+'</b> <span class="sep">›</span> <span>municipios</span>'; }
+    else { cr.innerHTML='<a data-root="1">Nacional</a> <span class="sep">›</span> <a data-ent="1">'+(NAC_ENT_NOM[nEnt]||nEnt)+'</a> <span class="sep">›</span> <b>'+munLabel(nMun)+'</b> <span class="sep">›</span> <span>AGEBs</span>'; }
+  }
+  function renderTerritorio(mode){
+    if(!DASH) return;
+    var seq=['--seq0','--seq1','--seq2','--seq3','--seq4'].map(css);
+    var cols=terrCols();
+    terrCrumb();
+    var sn=document.getElementById('scopenote');
+    if(sn) sn.textContent = terrScope==='nac'
+      ? 'Fuente: SCINCE servicios_a (semilla) · modo distancia · 99.3 M hab en 32 estados'
+      : 'Fuente: inventario SEDEMA (Valhalla) · responde al modo distancia/tiempo';
+    var thead=document.querySelector('#terr-table thead'), tbody=document.querySelector('#terr-table tbody');
+    thead.innerHTML='<tr>'+cols.map(function(c){ var on=c.k===terrSortK;
+      return '<th data-k="'+c.k+'" class="'+(on?'sorted':'')+'">'+c.t+(on?(terrSortDir<0?' ▾':' ▴'):'')+'</th>'; }).join('')+'</tr>';
+    var rows=terrRows(mode).filter(function(r){ return r.nombre.toLowerCase().indexOf(terrFilter)>=0; });
+    rows.sort(function(a,b){ var x=a[terrSortK],y=b[terrSortK];
+      if(typeof x==='string') return terrSortDir*x.localeCompare(y); return terrSortDir*((x||0)-(y||0)); });
+    var maxP=Math.max.apply(null, terrRows(mode).map(function(r){return r.pct_sin_cob;}))||1;
+    tbody.innerHTML=rows.map(function(r){ return '<tr class="'+(r.drill?'drill':'')+'" data-id="'+r._id+'">'+cols.map(function(c){
+      var v=r[c.k];
+      if(c.k==='nombre') return '<td>'+v+(r.drill?'<span class="drillico">▸</span>':'')+'</td>';
+      if(c.bar){ var w=(100*v/maxP); return '<td><span class="pcell">'+v+'%<span class="minibar" style="width:'+Math.max(6,w*0.5).toFixed(0)+'px;background:'+rampColor(v,seq)+'"></span></span></td>'; }
+      if(c.pct) return '<td>'+(v==null?'—':v+'%')+'</td>';
+      return '<td>'+fmt(v)+'</td>'; }).join('')+'</tr>'; }).join('');
+  }
+  // interacción Territorio
+  function terrResetSort(){ terrSortK='pct_sin_cob'; terrSortDir=-1; terrFilter=''; var s=document.getElementById('terr-search'); if(s) s.value=''; }
+  document.getElementById('scopeseg').addEventListener('click', function(e){ var b=e.target.closest('button[data-scope]'); if(!b) return;
+    var sc=b.getAttribute('data-scope'); if(sc===terrScope) return;
+    if(sc==='nac' && !NAC){ return; }
+    terrScope=sc;
+    [].forEach.call(this.querySelectorAll('button'), function(x){ x.classList.toggle('on', x===b); });
+    if(sc==='cdmx'){ terrLevel='mun'; terrMun=null; } else { nLevel='est'; nEnt=null; nMun=null; }
+    terrResetSort(); renderTerritorio(platMode); });
+  document.querySelector('#terr-table thead').addEventListener('click', function(e){ var th=e.target.closest('th'); if(!th) return;
+    var kk=th.getAttribute('data-k'); if(kk===terrSortK) terrSortDir*=-1; else { terrSortK=kk; terrSortDir=(kk==='nombre')?1:-1; }
+    renderTerritorio(platMode); });
+  document.querySelector('#terr-table tbody').addEventListener('click', function(e){ var tr=e.target.closest('tr.drill'); if(!tr) return;
+    var id=tr.getAttribute('data-id');
+    if(terrScope==='cdmx'){ terrMun=id; terrLevel='ageb'; }
+    else { if(nLevel==='est'){ nEnt=id; nLevel='mun'; } else if(nLevel==='mun'){ nMun=id; nLevel='ageb'; } }
+    terrResetSort(); renderTerritorio(platMode); });
+  document.getElementById('crumbs').addEventListener('click', function(e){
+    if(e.target.getAttribute('data-root')){
+      if(terrScope==='cdmx'){ terrLevel='mun'; terrMun=null; } else { nLevel='est'; nEnt=null; nMun=null; }
+      terrResetSort(); renderTerritorio(platMode);
+    } else if(e.target.getAttribute('data-ent')){
+      nLevel='mun'; nMun=null; terrResetSort(); renderTerritorio(platMode);
+    } });
+  document.getElementById('terr-search').addEventListener('input', function(e){ terrFilter=e.target.value.toLowerCase().trim(); renderTerritorio(platMode); });
+  document.getElementById('terr-export').addEventListener('click', function(){
+    var cols=terrCols(), rows=terrRows(platMode).slice().sort(function(a,b){ return b.pct_sin_cob-a.pct_sin_cob; });
+    var head=cols.map(function(c){ return '"'+c.t+'"'; }).join(',');
+    var lines=rows.map(function(r){ return cols.map(function(c){ var v=r[c.k]; return typeof v==='string'?'"'+v+'"':(v==null?'':v); }).join(','); });
+    var csv=head+'\n'+lines.join('\n');
+    var blob=new Blob(['﻿'+csv],{type:'text/csv;charset=utf-8'});
+    var url=URL.createObjectURL(blob), a=document.createElement('a');
+    var fn = terrScope==='nac'
+      ? ('nacional_'+nLevel+(nEnt?('_'+nEnt):'')+(nMun?('_'+nMun):''))
+      : ((terrLevel==='mun'?'alcaldias':'agebs_'+terrMun)+'_'+platMode);
+    a.href=url; a.download=fn+'.csv';
+    document.body.appendChild(a); a.click(); document.body.removeChild(a); setTimeout(function(){URL.revokeObjectURL(url);},1000);
+  });
+
+  /* =========================================================
+     MAPA (Leaflet) — ámbito CDMX/Nacional, reconstruible, init perezoso
+     ========================================================= */
+  var mapScope='cdmx';
+  var map=null, bases=null, baseActual=null, canvas=null, D=null;
+  var layers={}, covLayers={}, covData={}, covChecked={}, curMode='distance', espLyr=null;
+  var mapStaticBound=false;
+  function defaultOn(){ return mapScope==='nac' ? {espacios:true} : {cobertura_A1:true, espacios:true, desierto:true}; }
+  function covDef(id){ for(var i=0;i<COV.length;i++){ if(COV[i].id===id) return COV[i]; } return null; }
+  function getCov(mode,id){ // crea la capa Leaflet SOLO al necesitarla (perezoso: geometrías nacionales pesadas)
+    if(!covLayers[mode]) covLayers[mode]={};
+    if(covLayers[mode][id]) return covLayers[mode][id];
+    var rec=(covData[mode]||{})[id]; if(!rec) return null; var def=covDef(id); if(!def) return null;
+    var lyr=L.geoJSON({type:'Feature',geometry:rec.geometry,properties:{}},{style:covStyle(def.c)});
+    lyr.bindPopup('<b>'+def.label+'</b> · <span class="pk">'+modeLabel(mode)+'</span><br><span class="pk">Área de servicio:</span> '+(rec.area_km2||0).toLocaleString('es-MX')+' km²');
+    covLayers[mode][id]=lyr; return lyr;
+  }
+  var COV=[
+    {id:'cobertura_A1', c:'#35615D', label:'A-1 · 0.01–2 ha', d:'400 / 500 m'},
+    {id:'cobertura_B2', c:'#7B8C4E', label:'B-2 · 2–5 ha', d:'600 / 800 m'},
+    {id:'cobertura_C3', c:'#D89756', label:'C-3 · 5–10 ha', d:'800 / 1200 m'},
+    {id:'cobertura_D4', c:'#A7805F', label:'D-4 · 10–50 ha', d:'2.0 / 2.5 km'},
+    {id:'cobertura_E5', c:'#C7B850', label:'E-5 · > 50 ha', d:'12 km'},
+    {id:'cobertura_total', c:'#7C8A84', label:'Cobertura total', d:'unión A1–E5'},
+  ];
+  var ESC_COL={A1:'#35615D',B2:'#7B8C4E',C3:'#D89756',D4:'#A7805F',E5:'#C7B850'};
+  // tipología NOM 4.5 (función) — color por tipo de espacio
+  var FUN_COL={parque:'#35615D', jardin:'#6E8B3D', area_verde:'#6DA39D', deportivo:'#C99A2E',
+    plaza:'#A7805F', anp:'#2C524E', huerto:'#9E9D24', mirador:'#8E6FB0'};
+  var FUN_LABEL={parque:'Parque', jardin:'Jardín', area_verde:'Área verde', deportivo:'Espacio deportivo',
+    plaza:'Plaza', anp:'Área natural (ANP)', huerto:'Huerto', mirador:'Mirador'};
+  function funCol(f){ return FUN_COL[f]||'#6C7A72'; }
+  var BANDA={ casi:{c:'#C7B850',label:'Casi cubierta (excede <200 m)'},
+    deficit_medio:{c:'#D89756',label:'Déficit medio (200–500 m)'},
+    desierto:{c:'#C56A3A',label:'Desierto (>500 m)'} };
+  var DEFAULT_ON={cobertura_A1:true, espacios:true, desierto:true};
+
+  function curMapData(){ return mapScope==='nac' ? (window.ESPPUB_NAC||null) : ESP; }
+  function modeLabel(m){ return MODE_LAB[m]||m; }
+  function covStyle(c){ return {color:c,weight:1,opacity:.9,fillColor:c,fillOpacity:.32,renderer:canvas}; }
+  function toggleCov(id,on){ if(!map) return; var l=getCov(curMode,id); if(!l) return; if(on) l.addTo(map); else map.removeLayer(l); }
+  function toggle(id,on){ var l=layers[id]; if(!l||!map) return;
+    if(on){ l.addTo(map); if(l.bringToFront&&id.indexOf('sin_')===0) l.bringToFront();
+      if(id==='espacios'&&espLyr&&espLyr.eachLayer) espLyr.eachLayer(function(x){x.bringToFront&&x.bringToFront();}); }
+    else map.removeLayer(l); }
+  function pct(m,esc){ var r=(m||{})['cobertura_'+esc]||{}; return r.pct_poblacion; }
+  function dpp(esc){ var t=pct((D.meta||{}).time,esc), d=pct((D.meta||{}).distance,esc);
+    if(t==null||d==null) return ''; var dd=t-d; return ' ('+(dd>=0?'+':'')+dd.toFixed(1)+' pp)'; }
+  function kpi(cls,lab,val,sub){ return '<div class="mkpi '+cls+'"><div class="lab">'+lab+'</div><div class="val">'+val+'</div><div class="sub">'+sub+'</div></div>'; }
+  function renderKPIs(mode){ var meta=(D.meta||{})[mode]||{}, isT=(mode==='time');
+    var ct=meta.cobertura_total||{}, ca=meta.cobertura_A1||{}, cv=meta.cobertura_area_verde||{};
+    var sinPct=ct.pct_poblacion!=null?(100-ct.pct_poblacion).toFixed(1):'—';
+    document.getElementById('mkpis').innerHTML=
+      kpi('tl','Población total',(meta.poblacion_total?(meta.poblacion_total/1e6).toFixed(2)+' M':'—'),(meta.n_espacios||0).toLocaleString('es-MX')+' espacios · '+modeLabel(mode))+
+      kpi('gd','Con cobertura',(ct.pct_poblacion!=null?ct.pct_poblacion+'%':'—')+(isT?dpp('total'):''),'A-1 proximidad: '+(ca.pct_poblacion!=null?ca.pct_poblacion+'%':'—')+(isT?dpp('A1'):''))+
+      kpi('cr','Sin cobertura',sinPct+'%','área verde: '+(cv.pct_poblacion!=null?cv.pct_poblacion+'%':'—')+' cubierta');
+  }
+  function bringOverlaysFront(){ ['sin_casi','sin_deficit_medio','sin_desierto'].forEach(function(id){
+      if(layers[id]&&map.hasLayer(layers[id])&&layers[id].bringToFront) layers[id].bringToFront(); });
+    if(espLyr&&map.hasLayer(espLyr)) espLyr.eachLayer(function(x){ x.bringToFront&&x.bringToFront(); }); }
+  function applyMapMode(m){ if(!covData[m]||m===curMode){ syncSeg(); return; }
+    COV.forEach(function(def){ if(covChecked[def.id]){
+      var oldL=covLayers[curMode]&&covLayers[curMode][def.id]; if(oldL) map.removeLayer(oldL);
+      var newL=getCov(m,def.id); if(newL) newL.addTo(map); } });
+    curMode=m; renderKPIs(curMode); bringOverlaysFront(); syncSeg(); }
+  function syncSeg(){ [].forEach.call(document.getElementById('seg-modo').children, function(x){ x.classList.toggle('on', x.getAttribute('data-modo')===curMode); }); }
+  window._mapSetMode=applyMapMode;
+
+  function buildMap(){
+    D=curMapData();
+    if(!D){ document.getElementById('lmap').innerHTML='<p style="padding:30px">Falta '+(mapScope==='nac'?'mapa_nacional_datos.js':'mapa_datos.js')+'</p>'; return; }
+    var isNac=(mapScope==='nac');
+    map=L.map('lmap',{preferCanvas:true, zoomControl:true}).setView(isNac?[23.6,-102.5]:[19.36,-99.13], isNac?5:11);
+    window._lmap=map;
+    bases={
+      calles:L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© OpenStreetMap'}),
+      claro:L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',{maxZoom:20,subdomains:'abcd',attribution:'© OpenStreetMap © CARTO'}),
+      satelite:L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',{maxZoom:19,attribution:'© Esri World Imagery'}),
+    };
+    baseActual=bases.calles.addTo(map);
+    [].forEach.call(document.getElementById('seg-base').children, function(x){ x.classList.toggle('on', x.getAttribute('data-base')==='calles'); });
+
+    canvas=L.canvas({padding:0.5});
+    var modes=(D.modes&&D.modes.length)?D.modes.slice():Object.keys(D.coverage||{});
+    curMode=modes.indexOf(platMode)>=0?platMode:(modes.indexOf('distance')>=0?'distance':modes[0]);
+    // en nacional solo hay modo distancia: oculta el botón Tiempo
+    var bt=document.querySelector('#seg-modo [data-modo="time"]'); if(bt) bt.style.display=isNac?'none':'';
+
+    // NO crear las capas de cobertura aún (geometrías nacionales pesadas) — solo guardar los datos
+    covData={}; modes.forEach(function(mode){ covData[mode]=D.coverage[mode]||{}; });
+    var DEF_ON=defaultOn();
+
+    espLyr=L.layerGroup();
+    var funPresentes={};
+    (D.espacios||[]).forEach(function(e){ var col=funCol(e.funcion); funPresentes[e.funcion||'_']=true;
+      var m=L.circleMarker([e.lat,e.lon],{renderer:canvas,radius:3.2,color:'#fff',weight:.7,fillColor:col,fillOpacity:.95});
+      m.bindPopup('<b>'+(e.nombre||'(sin nombre)')+'</b><br><span class="pk">Tipología (NOM):</span> '+(FUN_LABEL[e.funcion]||e.funcion||'—')+'<br><span class="pk">Escala:</span> '+e.escala+' · '+(e.ha||0)+' ha<br><span class="pk">Estado:</span> '+(e.sistema?'en sistema (D2)':'aislado (D1)')+' · '+(e.dist_m||0)+' m');
+      espLyr.addLayer(m); });
+    layers['espacios']=espLyr;
+    // leyenda de tipología (solo funciones presentes en el ámbito actual)
+    var flg=document.getElementById('fun-legend');
+    if(flg){ var orden=['parque','jardin','area_verde','deportivo','plaza','anp','huerto','mirador'];
+      flg.innerHTML=orden.filter(function(f){ return funPresentes[f]; }).map(function(f){
+        return '<span style="display:inline-flex;align-items:center;gap:5px;font-size:11px;color:var(--muted)">'+
+          '<span style="width:9px;height:9px;border-radius:50%;background:'+FUN_COL[f]+';border:1px solid #fff5"></span>'+FUN_LABEL[f]+'</span>'; }).join(''); }
+
+    var ordenBanda=['casi','deficit_medio','desierto'];
+    ordenBanda.forEach(function(b){ var rec=(D.sin_cobertura||{})[b]; if(!rec) return; var col=(BANDA[b]||{}).c||'#C56A3A';
+      var lyr=L.geoJSON({type:'Feature',geometry:rec.geometry,properties:{}},{style:{color:col,weight:.6,opacity:.9,fillColor:col,fillOpacity:.5,renderer:canvas}});
+      lyr.bindPopup('<b>'+((BANDA[b]||{}).label||b)+'</b><br><span class="pk">Manzanas:</span> '+rec.manzanas.toLocaleString('es-MX')+'<br><span class="pk">Población:</span> '+rec.poblacion.toLocaleString('es-MX'));
+      layers['sin_'+b]=lyr; });
+
+    var covRows=document.getElementById('cov-rows');
+    COV.forEach(function(def){ var exists=modes.some(function(m){return (covData[m]||{})[def.id];}); if(!exists) return;
+      var on=!!DEF_ON[def.id]; covChecked[def.id]=on;
+      var row=document.createElement('label'); row.className='prow';
+      row.innerHTML='<input type="checkbox" '+(on?'checked':'')+'><span class="sw" style="background:'+def.c+'"></span><span class="lab">'+def.label+'</span><span class="meta">'+def.d+'</span>';
+      row.querySelector('input').addEventListener('change', function(){ covChecked[def.id]=this.checked; toggleCov(def.id,this.checked); });
+      covRows.appendChild(row);
+      if(on){ var l0=getCov(curMode,def.id); if(l0) l0.addTo(map); } });
+
+    document.getElementById('grp-sin').style.display=D.sin_cobertura?'':'none';
+    var sinRows=document.getElementById('sin-rows');
+    ordenBanda.forEach(function(b){ var id='sin_'+b; if(!layers[id]) return; var rec=D.sin_cobertura[b]; var on=!!DEF_ON[b];
+      var row=document.createElement('label'); row.className='prow';
+      row.innerHTML='<input type="checkbox" '+(on?'checked':'')+'><span class="sw" style="background:'+BANDA[b].c+';opacity:.7"></span><span class="lab">'+BANDA[b].label.split(' (')[0]+'</span><span class="meta">'+(rec.poblacion/1000).toFixed(0)+'k hab</span>';
+      row.querySelector('input').addEventListener('change', function(){ toggle(id,this.checked); });
+      sinRows.appendChild(row); if(on) layers[id].addTo(map); });
+
+    var espCb=document.querySelector('[data-layer="espacios"] input'); if(espCb) espCb.checked=!!DEF_ON.espacios;
+    if(DEF_ON.espacios) espLyr.addTo(map);
+    document.getElementById('n-esp').textContent=(D.espacios||[]).length.toLocaleString('es-MX');
+
+    syncSeg(); renderKPIs(curMode);
+    document.getElementById('foot').innerHTML = isNac
+      ? 'Fuente: isócronas peatonales <b>Valhalla</b> (modo <b>distancia</b> · NOM) sobre inventario semilla <b>SCINCE servicios_a</b> de 32 estados. KPIs = <b>población con acceso</b> (script 12). 19,214 espacios (E-5 inexistente). Sin bandas de déficit a nivel nacional. Inventario PARCIAL → % son un piso.'
+      : 'Fuente: isócronas peatonales <b>Valhalla</b> por red vial. <b>Tiempo</b> = costing peatonal con <b>pendiente</b> (SRTM); <b>Distancia</b> = isodistancia NOM. En modo tiempo, E-5 (12 km) usa isodistancia. Sin cobertura = línea base Dijkstra (04). Contornos ~12 m.';
+  }
+
+  function rebuildMap(){
+    if(map){ map.remove(); map=null; window._lmap=null; }
+    document.getElementById('cov-rows').innerHTML='';
+    document.getElementById('sin-rows').innerHTML='';
+    layers={}; covLayers={}; covChecked={}; espLyr=null;
+    buildMap();
+  }
+
+  function bindMapStatic(){
+    if(mapStaticBound) return; mapStaticBound=true;
+    document.getElementById('seg-base').addEventListener('click', function(e){
+      var b=e.target.getAttribute('data-base'); if(!b||!map) return;
+      map.removeLayer(baseActual); baseActual=bases[b]; baseActual.addTo(map);
+      [].forEach.call(this.children, function(x){ x.classList.toggle('on', x===e.target); }); });
+    document.getElementById('seg-modo').addEventListener('click', function(e){ var m=e.target.getAttribute('data-modo'); if(m) setPlatMode(m); });
+    document.querySelector('[data-layer="espacios"] input').addEventListener('change', function(){ toggle('espacios',this.checked); });
+    var panel=document.getElementById('panel'), btn=document.getElementById('btnToggle');
+    btn.addEventListener('click', function(){ var vis=panel.style.display!=='none'; panel.style.display=vis?'none':'block'; btn.textContent=vis?'Capas ▾':'Capas ▴'; });
+    document.getElementById('seg-scope-mapa').addEventListener('click', function(e){
+      var b=e.target.closest('button[data-mscope]'); if(!b) return;
+      var sc=b.getAttribute('data-mscope'); if(sc===mapScope) return;
+      if(sc==='nac' && !window.ESPPUB_NAC) return;
+      mapScope=sc;
+      [].forEach.call(this.querySelectorAll('button'), function(x){ x.classList.toggle('on', x===b); });
+      rebuildMap(); if(map) setTimeout(function(){ map.invalidateSize(); }, 60); });
+  }
+
+  function initMap(){ if(mapReady) return; mapReady=true; bindMapStatic(); buildMap(); }
+
+  /* =========================================================
+     CARGA DE CAPAS EXTERNAS (preview client-side) — KML / GeoJSON
+     Parsea el archivo, clasifica escala (NOM 4.4.3.6) y tipología (función), y lo
+     dibuja en el mapa. Las ISÓCRONAS se calculan corriendo el script 15 (+11) — el
+     navegador no rutea en Valhalla (CORS). Aquí es previsualización + validación.
+     ========================================================= */
+  (function(){
+    var upLayer=null, lastFeats=null;
+    var sel=document.getElementById('up-fun');
+    if(sel){ sel.innerHTML=Object.keys(FUN_LABEL).map(function(f){ return '<option value="'+f+'">'+FUN_LABEL[f]+'</option>'; }).join(''); sel.value='parque'; }
+    function escalaDe(ha){ if(ha<0.01)return'menor_minimo'; if(ha<=2)return'A1'; if(ha<=5)return'B2'; if(ha<=10)return'C3'; if(ha<=50)return'D4'; return'E5'; }
+    var ESC_D2={A1:'500 m',B2:'800 m',C3:'1 200 m',D4:'2 500 m',E5:'12 km'};
+    function areaHa(ring){ if(!ring||ring.length<4)return 0; var lat0=ring[0][1]*Math.PI/180, kx=111320*Math.cos(lat0), ky=110570, A=0;
+      for(var i=0,j=ring.length-1;i<ring.length;j=i++){ A+=(ring[j][0]*kx*ring[i][1]*ky)-(ring[i][0]*kx*ring[j][1]*ky); } return Math.abs(A/2)/10000; }
+    function normFun(v,def){ var n=(v==null?'':''+v).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').trim();
+      var m={parque:'parque',parques:'parque',jardin:'jardin',jardines:'jardin','area verde':'area_verde','areas verdes':'area_verde',verde:'area_verde',deportivo:'deportivo',cancha:'deportivo','unidad deportiva':'deportivo','area deportiva':'deportivo',plaza:'plaza',plazoleta:'plaza',anp:'anp','area natural':'anp',reserva:'anp',huerto:'huerto',mirador:'mirador'};
+      return m[n]||(FUN_LABEL[n]?n:def); }
+    // clasificación NOM automática: campo de tipo → si no, inferir del NOMBRE → si no, default del selector
+    function clasificaFun(tipo, name, def){ var f=normFun(tipo,null); if(f) return f;
+      var n=(name||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'');
+      if(/cancha|deportiv|unidad deportiva|estadio|gimnas|futbol|beisbol|basquet/.test(n)) return 'deportivo';
+      if(/jardin/.test(n)) return 'jardin';
+      if(/parque/.test(n)) return 'parque';
+      if(/plaza|explanada|zocalo|alameda|kiosco/.test(n)) return 'plaza';
+      if(/area natural|reserva|\banp\b|parque nacional|santuario/.test(n)) return 'anp';
+      if(/area verde|camellon|glorieta|arbolado/.test(n)) return 'area_verde';
+      if(/huerto/.test(n)) return 'huerto';
+      if(/mirador/.test(n)) return 'mirador';
+      return def; }
+    // KMZ = ZIP con un .kml → se descomprime en el navegador (DecompressionStream deflate-raw)
+    async function kmzToKml(buf){ var dv=new DataView(buf), n=buf.byteLength, eocd=-1;
+      for(var i=n-22;i>=0 && i>=n-22-65536;i--){ if(dv.getUint32(i,true)===0x06054b50){ eocd=i; break; } }
+      if(eocd<0) throw new Error('KMZ inválido');
+      var cdOff=dv.getUint32(eocd+16,true), cnt=dv.getUint16(eocd+10,true), p=cdOff, tgt=null;
+      for(var e=0;e<cnt;e++){ if(dv.getUint32(p,true)!==0x02014b50) break;
+        var method=dv.getUint16(p+10,true), compSize=dv.getUint32(p+20,true);
+        var nlen=dv.getUint16(p+28,true), xlen=dv.getUint16(p+30,true), clen=dv.getUint16(p+32,true), lho=dv.getUint32(p+42,true);
+        var name=new TextDecoder().decode(new Uint8Array(buf,p+46,nlen));
+        if(/\.kml$/i.test(name)){ if(!tgt || /doc\.kml$/i.test(name)) tgt={method:method,compSize:compSize,lho:lho}; }
+        p+=46+nlen+xlen+clen; }
+      if(!tgt) throw new Error('KMZ sin .kml');
+      var lfn=dv.getUint16(tgt.lho+26,true), lex=dv.getUint16(tgt.lho+28,true), ds=tgt.lho+30+lfn+lex;
+      var comp=new Uint8Array(buf,ds,tgt.compSize);
+      if(tgt.method===0) return new TextDecoder().decode(comp);
+      var stream=new Response(comp).body.pipeThrough(new DecompressionStream('deflate-raw'));
+      var out=await new Response(stream).arrayBuffer(); return new TextDecoder().decode(new Uint8Array(out)); }
+    function fromGeoJSON(o){ var fs=o.type==='FeatureCollection'?o.features:(o.type==='Feature'?[o]:[]); var out=[];
+      (fs||[]).forEach(function(f){ var g=f.geometry; if(!g)return; var pr=f.properties||{};
+        var nm=pr.nombre||pr.name||pr.NOMBRE||pr.Name||''; var tp=pr.tipo||pr.funcion||pr.TIPO||pr.Tipo||pr.categoria||'';
+        if(g.type==='Polygon') out.push({name:nm,tipo:tp,kind:'poly',rings:g.coordinates});
+        else if(g.type==='MultiPolygon') g.coordinates.forEach(function(p){ out.push({name:nm,tipo:tp,kind:'poly',rings:p}); });
+        else if(g.type==='Point') out.push({name:nm,tipo:tp,kind:'point',pt:g.coordinates});
+        else if(g.type==='MultiPoint') g.coordinates.forEach(function(p){ out.push({name:nm,tipo:tp,kind:'point',pt:p}); }); });
+      return out; }
+    function fromKML(text){ var doc=new DOMParser().parseFromString(text,'application/xml'); var pms=doc.getElementsByTagName('Placemark'); var out=[];
+      function pc(s){ return s.trim().split(/\s+/).map(function(t){var a=t.split(','); return [parseFloat(a[0]),parseFloat(a[1])];}).filter(function(p){return !isNaN(p[0])&&!isNaN(p[1]);}); }
+      for(var i=0;i<pms.length;i++){ var pm=pms[i]; var nm=(pm.getElementsByTagName('name')[0]||{}).textContent||'';
+        var polys=pm.getElementsByTagName('Polygon');
+        for(var j=0;j<polys.length;j++){ var ob=polys[j].getElementsByTagName('outerBoundaryIs')[0]||polys[j]; var co=ob.getElementsByTagName('coordinates')[0]; if(co) out.push({name:nm,tipo:'',kind:'poly',rings:[pc(co.textContent)]}); }
+        if(!polys.length){ var pts=pm.getElementsByTagName('Point'); for(var k=0;k<pts.length;k++){ var c=pts[k].getElementsByTagName('coordinates')[0]; if(c){ var p=pc(c.textContent)[0]; if(p) out.push({name:nm,tipo:'',kind:'point',pt:p}); } } } }
+      return out; }
+    function clearPreview(){ if(upLayer&&window._lmap){ window._lmap.removeLayer(upLayer); } upLayer=null;
+      document.getElementById('up-clear').style.display='none'; document.getElementById('up-status').innerHTML=''; }
+    function addPreview(feats, defFun){
+      if(!window._lmap){ document.getElementById('up-status').innerHTML='⚠ Abre primero la vista Mapa.'; return; }
+      lastFeats=feats;
+      clearPreview(); upLayer=L.layerGroup();
+      var n=0, porFun={}, bounds=[], nDefault=0;
+      feats.forEach(function(ft){ var esp=clasificaFun(ft.tipo, ft.name, null); var fun=esp||defFun; if(!esp) nDefault++; var col=funCol(fun);
+        var ha=0, esc='A1', geomOk=true, lyr;
+        if(ft.kind==='poly'){ ha=areaHa(ft.rings[0]); esc=escalaDe(ha);
+          var lls=ft.rings.map(function(r){ return r.map(function(p){ return [p[1],p[0]]; }); });
+          lyr=L.polygon(lls,{color:col,weight:2,dashArray:'5 3',fillColor:col,fillOpacity:.35});
+          ft.rings[0].forEach(function(p){ bounds.push([p[1],p[0]]); });
+        } else { esc='A1'; var ll=[ft.pt[1],ft.pt[0]];
+          lyr=L.circleMarker(ll,{radius:6,color:'#fff',weight:1.4,fillColor:col,fillOpacity:1,dashArray:'3'});
+          bounds.push(ll); }
+        lyr.bindPopup('<b>'+(ft.name||'(sin nombre)')+'</b> <span class="pk">· carga</span><br>'+
+          '<span class="pk">Tipología (NOM):</span> '+(FUN_LABEL[fun]||fun)+'<br>'+
+          '<span class="pk">Escala:</span> '+esc+(ft.kind==='poly'?(' · '+ha.toFixed(2)+' ha'):' · (punto, preliminar)')+'<br>'+
+          '<span class="pk">Isócrona D2:</span> ~'+(ESC_D2[esc]||'—')+' <i>(pendiente — correr script 15)</i>');
+        upLayer.addLayer(lyr); n++; porFun[fun]=(porFun[fun]||0)+1; });
+      upLayer.addTo(window._lmap);
+      if(bounds.length){ try{ window._lmap.fitBounds(bounds,{maxZoom:15,padding:[40,40]}); }catch(e){} }
+      var resumen=Object.keys(porFun).map(function(f){ return (FUN_LABEL[f]||f)+': '+porFun[f]; }).join(' · ');
+      var nota = nDefault ? ('<br><span style="color:var(--warn)">'+nDefault+' sin tipología reconocida → se usó "'+(FUN_LABEL[defFun]||defFun)+'" (el selector). Cambia el selector para re-clasificarlos.</span>') : '';
+      document.getElementById('up-status').innerHTML='<b>'+n+' espacios en preview</b> ('+resumen+').'+nota+'<br>'+
+        'Para calcular sus <b>isócronas por tipología</b> corre:<br><code style="font-size:10.5px">15_cargar_externo.py &lt;archivo&gt;</code> → 11 → 12 → 13 → 14.';
+      document.getElementById('up-clear').style.display='';
+    }
+    var fileInput=document.getElementById('up-file');
+    function procesar(feats){ if(!feats.length){ document.getElementById('up-status').innerHTML='⚠ Sin geometrías reconocidas (Polygon/Point).'; return; }
+      addPreview(feats, document.getElementById('up-fun').value); }
+    function fallo(err){ document.getElementById('up-status').innerHTML='⚠ No se pudo leer el archivo ('+err.message+'). Formatos: GeoJSON, KML o KMZ.'; }
+    if(fileInput) fileInput.addEventListener('change', function(e){ var f=e.target.files&&e.target.files[0]; if(!f) return;
+      var rd=new FileReader();
+      if(/\.kmz$/i.test(f.name)){
+        rd.onload=function(){ kmzToKml(rd.result).then(function(kml){ procesar(fromKML(kml)); }).catch(fallo); };
+        rd.readAsArrayBuffer(f);
+      } else {
+        rd.onload=function(){ try{ procesar(/\.kml$/i.test(f.name)?fromKML(rd.result):fromGeoJSON(JSON.parse(rd.result))); }catch(err){ fallo(err); } };
+        rd.readAsText(f);
+      } });
+    if(sel) sel.addEventListener('change', function(){ if(lastFeats) addPreview(lastFeats, sel.value); });
+    var clr=document.getElementById('up-clear'); if(clr) clr.addEventListener('click', function(){ clearPreview(); lastFeats=null; });
+  })();
+
+  /* arranque */
+  setPlatMode(platMode);
+  showView(location.hash.slice(1)||'resumen');
+})();
+</script>
+</body>
+</html>
