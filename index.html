@@ -352,11 +352,6 @@
         <button class="btn ghost" id="map-png" style="font-size:12px;flex:1">PNG</button>
         <button class="btn ghost" id="map-pdf" style="font-size:12px;flex:1">PDF</button>
       </div>
-      <div class="grp">Modo de alcance</div>
-      <div class="seg" id="seg-modo">
-        <button data-modo="distance" class="on">Distancia · NOM</button>
-        <button data-modo="time">Tiempo · pendiente</button>
-      </div>
       <div class="grp">Cobertura por escala (NOM 4.4.3.6)</div>
       <div id="cov-rows"></div>
       <div class="grp">Espacios públicos (fuente)</div>
@@ -989,7 +984,7 @@
       var oldL=covLayers[curMode]&&covLayers[curMode][def.id]; if(oldL) map.removeLayer(oldL);
       var newL=getCov(m,def.id); if(newL) newL.addTo(map); } });
     curMode=m; renderKPIs(curMode); bringOverlaysFront(); syncSeg(); }
-  function syncSeg(){ [].forEach.call(document.getElementById('seg-modo').children, function(x){ x.classList.toggle('on', x.getAttribute('data-modo')===curMode); }); }
+  function syncSeg(){ var s=document.getElementById('seg-modo'); if(!s) return; [].forEach.call(s.children, function(x){ x.classList.toggle('on', x.getAttribute('data-modo')===curMode); }); }
   window._mapSetMode=applyMapMode;
 
   /* --- Dibujar espacios: Geoman (dibujo) + Turf (área→escala) + centroide + isócrona --- */
@@ -1159,8 +1154,8 @@
     canvas=L.canvas({padding:0.5});
     var modes=(D.modes&&D.modes.length)?D.modes.slice():Object.keys(D.coverage||{});
     curMode=modes.indexOf(platMode)>=0?platMode:(modes.indexOf('distance')>=0?'distance':modes[0]);
-    // en nacional solo hay modo distancia: oculta el botón Tiempo
-    var bt=document.querySelector('#seg-modo [data-modo="time"]'); if(bt) bt.style.display=isNac?'none':'';
+    // en nacional solo hay modo distancia: oculta el botón Tiempo (toggle del header)
+    var bt=document.querySelector('#modeseg [data-modo="time"]'); if(bt) bt.style.display=isNac?'none':'';
 
     // NO crear las capas de cobertura aún (geometrías nacionales pesadas) — solo guardar los datos
     covData={}; modes.forEach(function(mode){ covData[mode]=D.coverage[mode]||{}; });
@@ -1207,7 +1202,6 @@
       var b=e.target.getAttribute('data-base'); if(!b||!map) return;
       map.removeLayer(baseActual); baseActual=bases[b]; baseActual.addTo(map);
       [].forEach.call(this.children, function(x){ x.classList.toggle('on', x===e.target); }); });
-    document.getElementById('seg-modo').addEventListener('click', function(e){ var m=e.target.getAttribute('data-modo'); if(m) setPlatMode(m); });
     document.querySelector('[data-layer="espacios"] input').addEventListener('change', function(){ masterEsp=this.checked; syncEsp(); });
     var panel=document.getElementById('panel'), btn=document.getElementById('btnToggle');
     btn.addEventListener('click', function(){ var vis=panel.style.display!=='none'; panel.style.display=vis?'none':'block'; btn.textContent=vis?'Capas ▾':'Capas ▴'; });
